@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { X, ChevronLeft, ChevronRight, Plus, Trash2, MoreVertical } from 'lucide-react';
+import { createPortal } from 'react-dom';
 import { dataService } from '../services/dataService';
 import { HighlightItem } from '../types';
 import { supabase } from '../services/supabaseClient';
@@ -182,8 +183,8 @@ export default function HighlightViewer({ highlightId, isOwnProfile, onClose }: 
 
   if (items.length === 0 && !isOwnProfile) return null;
 
-  return (
-    <div className="fixed inset-0 z-[200] bg-black flex items-center justify-center">
+  const viewerContent = (
+    <div className="fixed inset-0 z-[9999] bg-black flex items-center justify-center">
       {/* Instagram-style Progress Bars */}
       <div className="absolute top-3 left-0 w-full px-3 flex gap-1 z-20">
         {items.map((_, index) => (
@@ -338,4 +339,11 @@ export default function HighlightViewer({ highlightId, isOwnProfile, onClose }: 
       )}
     </div>
   );
+
+  if (typeof document === 'undefined') {
+    return viewerContent;
+  }
+
+  // Renderiza no body para evitar sobreposição por containers com transform/sticky.
+  return createPortal(viewerContent, document.body);
 }
