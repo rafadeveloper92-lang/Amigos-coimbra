@@ -33,6 +33,7 @@ export default function PwaInstallPrompt() {
   const [installed, setInstalled] = useState(false);
   const [suppressedByPreference, setSuppressedByPreference] = useState(false);
   const [isSavingPreference, setIsSavingPreference] = useState(false);
+  const [sessionDismissed, setSessionDismissed] = useState(false);
 
   const isIosManualInstall = useMemo(() => {
     if (typeof window === 'undefined') return false;
@@ -115,6 +116,19 @@ export default function PwaInstallPrompt() {
   }, [isIosManualInstall, suppressedByPreference]);
 
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (isStandaloneMode() || installed || suppressedByPreference || sessionDismissed) {
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      setShowPrompt(true);
+    }, 1200);
+
+    return () => clearTimeout(timer);
+  }, [installed, suppressedByPreference, sessionDismissed]);
+
+  useEffect(() => {
     if (suppressedByPreference) {
       setShowPrompt(false);
     }
@@ -151,7 +165,8 @@ export default function PwaInstallPrompt() {
   };
 
   const handleClose = async () => {
-    await handleRemindLater();
+    setSessionDismissed(true);
+    setShowPrompt(false);
   };
 
   if (installed || !showPrompt || isStandaloneMode()) {
@@ -226,14 +241,29 @@ export default function PwaInstallPrompt() {
             ) : (
               <div className="space-y-3">
                 <div className="space-y-2">
-                  <p className="text-xs text-slate-600">
-                    No iPhone: toque em <span className="font-bold">Partilhar</span> e depois em{' '}
-                    <span className="font-bold">Adicionar ao Ecrã principal</span>.
-                  </p>
-                  <div className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-slate-100 text-slate-700 text-[11px] font-semibold">
-                    <Share2 className="w-3.5 h-3.5" />
-                    Partilhar → Adicionar ao ecrã principal
-                  </div>
+                  {isIosManualInstall ? (
+                    <>
+                      <p className="text-xs text-slate-600">
+                        No iPhone: toque em <span className="font-bold">Partilhar</span> e depois em{' '}
+                        <span className="font-bold">Adicionar ao Ecrã principal</span>.
+                      </p>
+                      <div className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-slate-100 text-slate-700 text-[11px] font-semibold">
+                        <Share2 className="w-3.5 h-3.5" />
+                        Partilhar → Adicionar ao ecrã principal
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-xs text-slate-600">
+                        Se o botão de instalar não apareceu, abra o menu do navegador (<span className="font-bold">⋮</span>)
+                        e toque em <span className="font-bold">Instalar app</span> / <span className="font-bold">Adicionar ao ecrã inicial</span>.
+                      </p>
+                      <div className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-slate-100 text-slate-700 text-[11px] font-semibold">
+                        <Download className="w-3.5 h-3.5" />
+                        Menu do navegador → Instalar app
+                      </div>
+                    </>
+                  )}
                 </div>
                 <div className="flex items-center justify-end gap-2">
                   <button
