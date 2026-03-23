@@ -3,6 +3,7 @@ import { Search, MessageSquare, Bell, User, Database, LogOut, Check, X } from 'l
 import { dataService } from '../services/dataService';
 import { supabase } from '../services/supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
 import { Notification } from '../types';
 import Logo from './Logo';
 import { formatDistanceToNow } from 'date-fns';
@@ -20,6 +21,7 @@ export default function Navbar({ onNavigate }: NavbarProps) {
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [newNotificationToast, setNewNotificationToast] = useState<string | null>(null);
+  const { isDark } = useTheme();
 
   useEffect(() => {
     if (newNotificationToast) {
@@ -148,7 +150,7 @@ export default function Navbar({ onNavigate }: NavbarProps) {
         )}
       </AnimatePresence>
 
-      <nav className="bg-nexus-blue text-white p-3 sticky top-0 z-50 shadow-lg border-b border-nexus-gold/30">
+      <nav className={`text-white p-3 sticky top-0 z-50 shadow-lg border-b ${isDark ? 'bg-slate-900/85 backdrop-blur-2xl border-white/15' : 'bg-nexus-blue border-nexus-gold/30'}`}>
       <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
         {/* Logo & Status */}
         <div className="flex items-center gap-3 shrink-0">
@@ -164,13 +166,13 @@ export default function Navbar({ onNavigate }: NavbarProps) {
           </div>
           
           {/* Status Indicator */}
-          <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-nexus-gold/10 border border-nexus-gold/20 shadow-inner max-w-[180px]">
+          <div className={`flex items-center gap-1.5 px-2 py-1 rounded-full shadow-inner max-w-[180px] ${isDark ? 'bg-white/10 border border-white/15' : 'bg-nexus-gold/10 border border-nexus-gold/20'}`}>
             <div className={`w-2 h-2 rounded-full shrink-0 ${
               dbStatus.connected 
                 ? (dbStatus.message === 'Conectado' ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]' : 'bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.8)]') 
                 : 'bg-rose-400 shadow-[0_0_8px_rgba(251,113,133,0.8)] animate-pulse'
             }`} />
-            <span className="text-[9px] font-black text-nexus-gold uppercase tracking-tighter truncate">
+            <span className={`text-[9px] font-black uppercase tracking-tighter truncate ${isDark ? 'text-[#f3dd9b]' : 'text-nexus-gold'}`}>
               {dbStatus.message}
             </span>
           </div>
@@ -199,7 +201,7 @@ export default function Navbar({ onNavigate }: NavbarProps) {
           <input 
             type="text" 
             placeholder="Pesquisar no Portal..." 
-            className="w-full bg-white/10 border border-white/20 rounded-lg py-1.5 pl-10 pr-4 text-sm focus:ring-2 focus:ring-nexus-gold/50 focus:bg-white/20 outline-none transition-all placeholder:text-white/30"
+            className={`w-full border rounded-lg py-1.5 pl-10 pr-4 text-sm outline-none transition-all placeholder:text-white/30 ${isDark ? 'bg-white/5 border-white/15 focus:ring-2 focus:ring-[#f3dd9b]/45 focus:bg-white/12' : 'bg-white/10 border-white/20 focus:ring-2 focus:ring-nexus-gold/50 focus:bg-white/20'}`}
           />
         </div>
 

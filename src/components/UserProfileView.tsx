@@ -326,17 +326,18 @@ export default function UserProfileView({ onEdit, userId, onSendMessage }: UserP
       )}
 
       {/* Header / Cover Section */}
-      <div className="bg-white overflow-hidden shadow-sm border-b border-slate-100">
+      <div className={`overflow-hidden shadow-sm border-b ${isDark ? 'bg-slate-900/75 border-slate-700/40 backdrop-blur-xl' : 'bg-white border-slate-100'}`}>
         {/* Cover Photo */}
-            <div className={`h-[30vh] md:h-[45vh] relative group overflow-hidden ${isDark ? 'bg-slate-900' : 'bg-slate-100'}`}>
+        <div className={`h-[30vh] md:h-[45vh] relative group overflow-hidden ${isDark ? 'bg-slate-900' : 'bg-slate-100'}`}>
           {coverUrl ? (
             <img src={coverUrl} alt="Cover" className="w-full h-full object-cover" />
           ) : (
-            <div className="w-full h-full bg-gradient-to-r from-nexus-blue to-indigo-900" />
+            <div className={`w-full h-full ${isDark ? 'bg-gradient-to-br from-[#101b35] via-[#0f172a] to-[#060b17]' : 'bg-gradient-to-r from-nexus-blue to-indigo-900'}`} />
           )}
+          {isDark && <div className="absolute inset-0 bg-gradient-to-b from-transparent via-black/20 to-[#020617]/85 pointer-events-none" />}
           
           {isOwnProfile && (
-            <button onClick={onEdit} className="absolute bottom-4 right-4 bg-black/50 hover:bg-black/70 text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-bold transition-all backdrop-blur-sm opacity-0 group-hover:opacity-100 z-10">
+            <button onClick={onEdit} className={`absolute bottom-4 right-4 text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-bold transition-all backdrop-blur-sm opacity-0 group-hover:opacity-100 z-10 ${isDark ? 'bg-slate-900/55 hover:bg-slate-900/75 border border-white/15' : 'bg-black/50 hover:bg-black/70'}`}>
               <Camera className="w-4 h-4" />
               Alterar Capa
             </button>
@@ -348,16 +349,16 @@ export default function UserProfileView({ onEdit, userId, onSendMessage }: UserP
           {/* Avatar - Overlapping Cover */}
           <div className="flex flex-col md:flex-row items-start md:items-end gap-4 md:gap-6">
             <div className="relative group">
-              <div className="w-28 h-28 md:w-40 md:h-40 rounded-full border-4 border-white shadow-lg overflow-hidden bg-slate-100">
+              <div className={`w-28 h-28 md:w-40 md:h-40 rounded-full border-4 overflow-hidden ${isDark ? 'border-[#d7bb76] shadow-[0_0_0_3px_rgba(15,23,42,0.9),0_10px_34px_rgba(0,0,0,0.5)] bg-slate-900' : 'border-white shadow-lg bg-slate-100'}`}>
                 <img src={avatarUrl} alt={displayName} className="w-full h-full object-cover" />
               </div>
               {isOwnProfile && (
                 <button 
                   onClick={onEdit} 
-                  className="absolute bottom-1 right-1 bg-nexus-blue hover:bg-blue-700 p-2 rounded-full shadow-md border-2 border-white transition-all transform hover:scale-110 active:scale-95"
+                  className={`absolute bottom-1 right-1 p-2 rounded-full shadow-md border-2 transition-all transform hover:scale-110 active:scale-95 ${isDark ? 'bg-[#c5a059] hover:bg-[#b5904c] border-[#0f172a]' : 'bg-nexus-blue hover:bg-blue-700 border-white'}`}
                   title="Alterar Foto de Perfil"
                 >
-                  <Camera className="w-4 h-4 text-white" />
+                  <Camera className={`w-4 h-4 ${isDark ? 'text-[#0f172a]' : 'text-white'}`} />
                 </button>
               )}
             </div>
@@ -366,14 +367,14 @@ export default function UserProfileView({ onEdit, userId, onSendMessage }: UserP
             <div className="flex-1 pb-1 mt-3 md:mt-0">
               <div className="flex flex-col gap-0.5">
                 <div className="flex items-center gap-2">
-                  <h1 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight">{displayName}</h1>
+                  <h1 className={`text-2xl md:text-3xl font-black tracking-tight ${isDark ? 'text-slate-100 drop-shadow-[0_2px_6px_rgba(0,0,0,0.35)]' : 'text-slate-900'}`}>{displayName}</h1>
                   {profile?.role === 'admin' && (
-                    <span className="bg-nexus-blue text-white text-[9px] font-black px-2 py-0.5 rounded-md uppercase tracking-widest shadow-sm">
+                    <span className={`text-[9px] font-black px-2 py-0.5 rounded-md uppercase tracking-widest shadow-sm ${isDark ? 'bg-[#d7bb76] text-[#1e293b]' : 'bg-nexus-blue text-white'}`}>
                       Admin
                     </span>
                   )}
                 </div>
-                <p className="text-slate-500 font-medium text-base md:text-lg">@{username}</p>
+                <p className={`font-medium text-base md:text-lg ${isDark ? 'text-slate-300/95' : 'text-slate-500'}`}>@{username}</p>
               </div>
             </div>
           </div>
@@ -384,7 +385,7 @@ export default function UserProfileView({ onEdit, userId, onSendMessage }: UserP
               <div className="flex gap-2 w-full md:w-auto">
                 <button 
                   onClick={onEdit}
-                  className="flex-1 md:flex-none bg-slate-100 hover:bg-slate-200 text-slate-900 px-6 py-2 rounded-lg font-bold flex items-center justify-center gap-2 transition-all text-sm border border-slate-200 shadow-sm"
+                  className={`flex-1 md:flex-none px-6 py-2 rounded-lg font-bold flex items-center justify-center gap-2 transition-all text-sm border shadow-sm ${isDark ? 'bg-white/10 hover:bg-white/15 text-slate-100 border-white/20 backdrop-blur-xl' : 'bg-slate-100 hover:bg-slate-200 text-slate-900 border-slate-200'}`}
                 >
                   <Edit3 className="w-4 h-4" />
                   Editar Perfil
@@ -392,30 +393,30 @@ export default function UserProfileView({ onEdit, userId, onSendMessage }: UserP
                 <div className="relative" ref={ownProfileMenuRef}>
                   <button
                     onClick={() => setShowOwnProfileMenu((prev) => !prev)}
-                    className="bg-slate-100 hover:bg-slate-200 text-slate-900 p-2 rounded-lg transition-all border border-slate-200 shadow-sm"
+                    className={`p-2 rounded-lg transition-all border shadow-sm ${isDark ? 'bg-white/10 hover:bg-white/15 text-slate-100 border-white/20 backdrop-blur-xl' : 'bg-slate-100 hover:bg-slate-200 text-slate-900 border-slate-200'}`}
                     title="Mais opções"
                   >
                     <MoreHorizontal className="w-5 h-5" />
                   </button>
 
                   {showOwnProfileMenu && (
-                    <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-xl border border-slate-100 overflow-hidden z-50">
+                    <div className={`absolute right-0 mt-2 w-56 rounded-xl shadow-xl overflow-hidden z-50 ${isDark ? 'bg-slate-900/95 border border-white/15 backdrop-blur-2xl' : 'bg-white border border-slate-100'}`}>
                       <button
                         onClick={async () => {
                           await toggleMode();
                           setShowOwnProfileMenu(false);
                         }}
                         disabled={isSavingTheme}
-                        className="w-full text-left px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 font-medium transition-colors flex items-center justify-between gap-3 disabled:opacity-60"
+                        className={`w-full text-left px-4 py-3 text-sm font-medium transition-colors flex items-center justify-between gap-3 disabled:opacity-60 ${isDark ? 'text-slate-100 hover:bg-white/10' : 'text-slate-700 hover:bg-slate-50'}`}
                       >
                         <span className="inline-flex items-center gap-2">
                           {isDark ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-nexus-blue" />}
                           {isDark ? 'Mudar para modo claro' : 'Mudar para modo escuro'}
                         </span>
                         {isSavingTheme ? (
-                          <div className="w-4 h-4 border-2 border-slate-300 border-t-slate-500 rounded-full animate-spin" />
+                          <div className={`w-4 h-4 border-2 rounded-full animate-spin ${isDark ? 'border-slate-500 border-t-slate-100' : 'border-slate-300 border-t-slate-500'}`} />
                         ) : (
-                          <span className="text-[11px] font-bold text-slate-400 uppercase">{mode}</span>
+                          <span className={`text-[11px] font-bold uppercase ${isDark ? 'text-slate-300' : 'text-slate-400'}`}>{mode}</span>
                         )}
                       </button>
                     </div>
@@ -429,9 +430,13 @@ export default function UserProfileView({ onEdit, userId, onSendMessage }: UserP
                   disabled={isAddingFriend || !!friendshipStatus}
                   className={`${
                     isAddingFriend || !!friendshipStatus
-                      ? 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200' 
-                      : 'bg-nexus-blue hover:bg-blue-700 text-white'
-                  } px-6 py-2 rounded-lg font-bold flex items-center gap-2 transition-all text-sm shadow-md`}
+                      ? isDark
+                        ? 'bg-white/10 text-slate-400 cursor-not-allowed border border-white/15'
+                        : 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200'
+                      : isDark
+                        ? 'bg-gradient-to-r from-[#24406e] to-[#1d4e89] hover:from-[#2f4f86] hover:to-[#2360a8] text-white border border-white/15'
+                        : 'bg-nexus-blue hover:bg-blue-700 text-white'
+                  } px-6 py-2 rounded-lg font-bold flex items-center gap-2 transition-all text-sm shadow-md ${isDark ? 'backdrop-blur-xl' : ''}`}
                 >
                   {isAddingFriend ? (
                     <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -449,7 +454,7 @@ export default function UserProfileView({ onEdit, userId, onSendMessage }: UserP
                     onClick={() => {
                       if (onSendMessage && userId) onSendMessage(userId);
                     }}
-                    className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-6 py-2 rounded-lg font-bold flex items-center gap-2 transition-all text-sm border border-slate-200"
+                    className={`px-6 py-2 rounded-lg font-bold flex items-center gap-2 transition-all text-sm border ${isDark ? 'bg-white/10 hover:bg-white/15 text-slate-100 border-white/20 backdrop-blur-xl' : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'}`}
                   >
                     <MessageCircle className="w-4 h-4" />
                     Mensagem
@@ -462,17 +467,17 @@ export default function UserProfileView({ onEdit, userId, onSendMessage }: UserP
               <div className="relative" ref={dropdownRef}>
                 <button 
                   onClick={() => setShowDropdown(!showDropdown)}
-                  className="bg-slate-100 hover:bg-slate-200 text-slate-700 p-2 rounded-lg transition-all border border-slate-200"
+                  className={`p-2 rounded-lg transition-all border ${isDark ? 'bg-white/10 hover:bg-white/15 text-slate-100 border-white/20 backdrop-blur-xl' : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'}`}
                 >
                   <MoreHorizontal className="w-5 h-5" />
                 </button>
                 
                 {showDropdown && (
-                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-xl border border-slate-100 overflow-hidden z-50">
+                  <div className={`absolute right-0 mt-2 w-48 rounded-xl shadow-xl overflow-hidden z-50 ${isDark ? 'bg-slate-900/95 border border-white/15 backdrop-blur-2xl' : 'bg-white border border-slate-100'}`}>
                     {friendshipStatus?.status === 'accepted' && (
                       <button 
                         onClick={handleRemoveFriend}
-                        className="w-full text-left px-4 py-3 text-sm text-red-600 hover:bg-slate-50 font-medium transition-colors"
+                        className={`w-full text-left px-4 py-3 text-sm text-red-500 font-medium transition-colors ${isDark ? 'hover:bg-white/10' : 'hover:bg-slate-50'}`}
                       >
                         Remover Amigo
                       </button>
@@ -480,7 +485,7 @@ export default function UserProfileView({ onEdit, userId, onSendMessage }: UserP
                     {friendshipStatus?.status !== 'blocked' && (
                       <button 
                         onClick={handleBlockUser}
-                        className="w-full text-left px-4 py-3 text-sm text-red-600 hover:bg-slate-50 font-medium transition-colors border-t border-slate-100"
+                        className={`w-full text-left px-4 py-3 text-sm text-red-500 font-medium transition-colors border-t ${isDark ? 'hover:bg-white/10 border-white/10' : 'hover:bg-slate-50 border-slate-100'}`}
                       >
                         Bloquear Usuário
                       </button>
@@ -488,7 +493,7 @@ export default function UserProfileView({ onEdit, userId, onSendMessage }: UserP
                     {friendshipStatus?.status === 'blocked' && (
                       <button 
                         onClick={handleRemoveFriend}
-                        className="w-full text-left px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 font-medium transition-colors"
+                        className={`w-full text-left px-4 py-3 text-sm font-medium transition-colors ${isDark ? 'text-slate-100 hover:bg-white/10' : 'text-slate-700 hover:bg-slate-50'}`}
                       >
                         Desbloquear
                       </button>
@@ -502,40 +507,58 @@ export default function UserProfileView({ onEdit, userId, onSendMessage }: UserP
           {/* Stats and Bio */}
           <div className="mt-8">
             {/* Stats - Premium Layout */}
-            <div className="flex justify-between md:justify-start md:gap-12 py-6 border-y border-slate-50">
-              <div className="flex flex-col items-center md:items-start">
-                <span className="font-black text-xl text-slate-900">{profile?.posts_count || 0}</span>
-                <span className="text-[9px] text-slate-400 font-black uppercase tracking-[0.15em] mt-0.5">Publicações</span>
+            {isDark ? (
+              <div className="grid grid-cols-3 gap-2 md:gap-3 py-5 border-y border-white/10">
+                {[
+                  { value: profile?.posts_count || 0, label: 'Publicações' },
+                  { value: profile?.followers_count || 0, label: 'Seguidores' },
+                  { value: profile?.following_count || 0, label: 'A seguir' },
+                ].map((item) => (
+                  <div
+                    key={item.label}
+                    className="rounded-2xl px-3 py-3.5 text-center bg-gradient-to-b from-white/15 to-white/6 border border-white/20 shadow-[inset_0_1px_0_rgba(255,255,255,0.22),0_8px_24px_rgba(2,6,23,0.35)] backdrop-blur-xl"
+                  >
+                    <p className="font-black text-2xl text-[#f3dd9b] leading-none">{item.value}</p>
+                    <p className="text-[9px] mt-2 uppercase tracking-[0.16em] text-slate-300 font-black">{item.label}</p>
+                  </div>
+                ))}
               </div>
-              <div className="flex flex-col items-center md:items-start">
-                <span className="font-black text-xl text-slate-900">{profile?.followers_count || 0}</span>
-                <span className="text-[9px] text-slate-400 font-black uppercase tracking-[0.15em] mt-0.5">Seguidores</span>
+            ) : (
+              <div className="flex justify-between md:justify-start md:gap-12 py-6 border-y border-slate-50">
+                <div className="flex flex-col items-center md:items-start">
+                  <span className="font-black text-xl text-slate-900">{profile?.posts_count || 0}</span>
+                  <span className="text-[9px] text-slate-400 font-black uppercase tracking-[0.15em] mt-0.5">Publicações</span>
+                </div>
+                <div className="flex flex-col items-center md:items-start">
+                  <span className="font-black text-xl text-slate-900">{profile?.followers_count || 0}</span>
+                  <span className="text-[9px] text-slate-400 font-black uppercase tracking-[0.15em] mt-0.5">Seguidores</span>
+                </div>
+                <div className="flex flex-col items-center md:items-start">
+                  <span className="font-black text-xl text-slate-900">{profile?.following_count || 0}</span>
+                  <span className="text-[9px] text-slate-400 font-black uppercase tracking-[0.15em] mt-0.5">A seguir</span>
+                </div>
               </div>
-              <div className="flex flex-col items-center md:items-start">
-                <span className="font-black text-xl text-slate-900">{profile?.following_count || 0}</span>
-                <span className="text-[9px] text-slate-400 font-black uppercase tracking-[0.15em] mt-0.5">A seguir</span>
-              </div>
-            </div>
+            )}
 
-            <p className="text-slate-600 max-w-2xl whitespace-pre-wrap text-left mt-6 leading-relaxed text-sm md:text-base">
+            <p className={`max-w-2xl whitespace-pre-wrap text-left mt-6 leading-relaxed text-sm md:text-base ${isDark ? 'text-slate-200/95' : 'text-slate-600'}`}>
               {bio}
             </p>
 
-            <div className="mt-4 flex flex-wrap justify-center md:justify-start gap-4 text-sm text-slate-400 font-medium">
+            <div className={`mt-4 flex flex-wrap justify-center md:justify-start gap-3 text-sm font-medium ${isDark ? 'text-slate-300' : 'text-slate-400'}`}>
               {profile?.nationality && (
-                <div className="flex items-center gap-1">
+                <div className={`flex items-center gap-1 px-2.5 py-1 rounded-full ${isDark ? 'bg-white/10 border border-white/15' : ''}`}>
                   <Globe className="w-4 h-4" />
                   {getNationalityLabel(profile.nationality)}
                 </div>
               )}
               {profile?.city && (
-                <div className="flex items-center gap-1">
+                <div className={`flex items-center gap-1 px-2.5 py-1 rounded-full ${isDark ? 'bg-white/10 border border-white/15' : ''}`}>
                   <MapPin className="w-4 h-4" />
                   {profile.city}
                 </div>
               )}
               {profile?.occupation && (
-                <div className="flex items-center gap-1">
+                <div className={`flex items-center gap-1 px-2.5 py-1 rounded-full ${isDark ? 'bg-white/10 border border-white/15' : ''}`}>
                   <Briefcase className="w-4 h-4" />
                   {profile.occupation}
                 </div>
@@ -548,11 +571,11 @@ export default function UserProfileView({ onEdit, userId, onSendMessage }: UserP
                 <div className="flex flex-col items-center gap-2 min-w-[70px]">
                   <button 
                     onClick={() => setShowHighlightModal(true)}
-                    className="w-16 h-16 rounded-full border-2 border-dashed border-slate-200 flex items-center justify-center hover:bg-slate-50 transition-colors bg-white shadow-sm"
+                    className={`w-16 h-16 rounded-full border-2 border-dashed flex items-center justify-center transition-colors shadow-sm ${isDark ? 'border-white/25 hover:bg-white/10 bg-white/10' : 'border-slate-200 hover:bg-slate-50 bg-white'}`}
                   >
                     <Plus className="w-6 h-6 text-slate-400" />
                   </button>
-                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Novo</span>
+                  <span className={`text-[10px] font-black uppercase tracking-widest ${isDark ? 'text-slate-300' : 'text-slate-500'}`}>Novo</span>
                 </div>
               )}
               {highlights.map((highlight) => {
@@ -563,18 +586,18 @@ export default function UserProfileView({ onEdit, userId, onSendMessage }: UserP
                   className="flex flex-col items-center gap-2 min-w-[70px] cursor-pointer group"
                 >
                   <div 
-                    className="w-16 h-16 rounded-full border-2 border-nexus-blue p-0.5 relative bg-white shadow-sm transition-transform group-hover:scale-105"
+                    className={`w-16 h-16 rounded-full border-2 p-0.5 relative shadow-sm transition-transform group-hover:scale-105 ${isDark ? 'border-[#d7bb76] bg-slate-900/80' : 'border-nexus-blue bg-white'}`}
                     onClick={() => setViewingHighlight({ id: highlight.id, canManage: canManageHighlight })}
                   >
-                    <div className="w-full h-full rounded-full overflow-hidden border-2 border-white">
+                    <div className={`w-full h-full rounded-full overflow-hidden border-2 ${isDark ? 'border-slate-800' : 'border-white'}`}>
                       <img src={highlight.cover_url} alt={highlight.title} className="w-full h-full object-cover" />
                     </div>
                   </div>
-                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-600 truncate w-full text-center" onClick={() => setViewingHighlight({ id: highlight.id, canManage: canManageHighlight })}>{highlight.title}</span>
+                  <span className={`text-[10px] font-black uppercase tracking-widest truncate w-full text-center ${isDark ? 'text-slate-200' : 'text-slate-600'}`} onClick={() => setViewingHighlight({ id: highlight.id, canManage: canManageHighlight })}>{highlight.title}</span>
                   {isOwnProfile && (
                     <button 
                       onClick={() => setEditingHighlight(highlight)}
-                      className="text-[9px] text-nexus-blue font-black uppercase tracking-tighter hover:underline"
+                      className={`text-[9px] font-black uppercase tracking-tighter hover:underline ${isDark ? 'text-[#d7bb76]' : 'text-nexus-blue'}`}
                     >
                       Editar
                     </button>
@@ -668,7 +691,7 @@ export default function UserProfileView({ onEdit, userId, onSendMessage }: UserP
           </div>
 
           {/* Tabs */}
-          <div className="mt-8 flex border-t border-slate-100">
+          <div className={`mt-8 flex border-t ${isDark ? 'border-white/10' : 'border-slate-100'}`}>
             {[
               { id: 'posts', label: 'Publicações', icon: Grid },
               { id: 'about', label: 'Sobre', icon: Info },
@@ -679,7 +702,13 @@ export default function UserProfileView({ onEdit, userId, onSendMessage }: UserP
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as any)}
                 className={`flex-1 py-4 flex items-center justify-center gap-2 text-sm font-bold transition-all relative ${
-                  activeTab === tab.id ? 'text-nexus-blue' : 'text-slate-400 hover:text-slate-600'
+                  activeTab === tab.id
+                    ? isDark
+                      ? 'text-[#f3dd9b]'
+                      : 'text-nexus-blue'
+                    : isDark
+                      ? 'text-slate-400 hover:text-slate-200'
+                      : 'text-slate-400 hover:text-slate-600'
                 }`}
               >
                 <tab.icon className="w-4 h-4" />
@@ -687,7 +716,7 @@ export default function UserProfileView({ onEdit, userId, onSendMessage }: UserP
                 {activeTab === tab.id && (
                   <motion.div 
                     layoutId="activeProfileTab"
-                    className="absolute bottom-0 left-0 right-0 h-1 bg-nexus-blue rounded-t-full"
+                    className={`absolute bottom-0 left-0 right-0 h-1 rounded-t-full ${isDark ? 'bg-[#d7bb76]' : 'bg-nexus-blue'}`}
                   />
                 )}
               </button>
@@ -700,64 +729,64 @@ export default function UserProfileView({ onEdit, userId, onSendMessage }: UserP
       <div className="max-w-4xl mx-auto mt-4 grid grid-cols-1 lg:grid-cols-12 gap-4 px-4 lg:px-0 pb-20">
         {/* Left Column - Intro/Photos (Desktop) */}
         <div className="hidden lg:block lg:col-span-5 space-y-4">
-          <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
-            <h2 className="text-lg font-black text-slate-900 mb-6 flex items-center gap-2">
-              <Info className="w-5 h-5 text-nexus-blue" />
+          <div className={`rounded-2xl p-6 shadow-sm border ${isDark ? 'bg-white/10 backdrop-blur-xl border-white/15' : 'bg-white border-slate-100'}`}>
+            <h2 className={`text-lg font-black mb-6 flex items-center gap-2 ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
+              <Info className={`w-5 h-5 ${isDark ? 'text-[#d7bb76]' : 'text-nexus-blue'}`} />
               Apresentação
             </h2>
-            <div className="space-y-4 text-sm text-slate-600">
+            <div className={`space-y-4 text-sm ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
               {profile?.occupation && (
                 <div className="flex items-center gap-3">
-                  <Briefcase className="w-5 h-5 text-slate-400" />
-                  <span>Trabalha como <span className="font-bold text-slate-900">{profile.occupation}</span></span>
+                  <Briefcase className={`w-5 h-5 ${isDark ? 'text-[#d7bb76]' : 'text-slate-400'}`} />
+                  <span>Trabalha como <span className={`font-bold ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>{profile.occupation}</span></span>
                 </div>
               )}
               {profile?.city && (
                 <div className="flex items-center gap-3">
-                  <MapPin className="w-5 h-5 text-slate-400" />
-                  <span>Mora em <span className="font-bold text-slate-900">{profile.city}</span></span>
+                  <MapPin className={`w-5 h-5 ${isDark ? 'text-[#d7bb76]' : 'text-slate-400'}`} />
+                  <span>Mora em <span className={`font-bold ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>{profile.city}</span></span>
                 </div>
               )}
               {profile?.nationality && (
                 <div className="flex items-center gap-3">
-                  <Globe className="w-5 h-5 text-slate-400" />
-                  <span>De <span className="font-bold text-slate-900">{getNationalityLabel(profile.nationality)}</span></span>
+                  <Globe className={`w-5 h-5 ${isDark ? 'text-[#d7bb76]' : 'text-slate-400'}`} />
+                  <span>De <span className={`font-bold ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>{getNationalityLabel(profile.nationality)}</span></span>
                 </div>
               )}
               {profile?.relationship && (
                 <div className="flex items-center gap-3">
-                  <Heart className="w-5 h-5 text-slate-400" />
-                  <span><span className="font-bold text-slate-900">{getRelationshipLabel(profile.relationship)}</span></span>
+                  <Heart className={`w-5 h-5 ${isDark ? 'text-[#d7bb76]' : 'text-slate-400'}`} />
+                  <span><span className={`font-bold ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>{getRelationshipLabel(profile.relationship)}</span></span>
                 </div>
               )}
               {age !== null && (
                 <div className="flex items-center gap-3">
-                  <Calendar className="w-5 h-5 text-slate-400" />
-                  <span>Idade: <span className="font-bold text-slate-900">{age} anos</span></span>
+                  <Calendar className={`w-5 h-5 ${isDark ? 'text-[#d7bb76]' : 'text-slate-400'}`} />
+                  <span>Idade: <span className={`font-bold ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>{age} anos</span></span>
                 </div>
               )}
               {profile?.gender && (
                 <div className="flex items-center gap-3">
-                  <UserIcon className="w-5 h-5 text-slate-400" />
-                  <span>Gênero: <span className="font-bold text-slate-900">{genderMap[profile.gender] || profile.gender}</span></span>
+                  <UserIcon className={`w-5 h-5 ${isDark ? 'text-[#d7bb76]' : 'text-slate-400'}`} />
+                  <span>Gênero: <span className={`font-bold ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>{genderMap[profile.gender] || profile.gender}</span></span>
                 </div>
               )}
               <div className="flex items-center gap-3">
-                <Calendar className="w-5 h-5 text-slate-400" />
-                <span>Membro desde <span className="font-bold text-slate-900">{joinedDate}</span></span>
+                <Calendar className={`w-5 h-5 ${isDark ? 'text-[#d7bb76]' : 'text-slate-400'}`} />
+                <span>Membro desde <span className={`font-bold ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>{joinedDate}</span></span>
               </div>
             </div>
             {isOwnProfile && (
-              <button onClick={onEdit} className="w-full mt-8 bg-slate-50 hover:bg-slate-100 text-slate-700 py-3 rounded-xl font-bold transition-all border border-slate-200">
+              <button onClick={onEdit} className={`w-full mt-8 py-3 rounded-xl font-bold transition-all border ${isDark ? 'bg-white/10 hover:bg-white/15 text-slate-100 border-white/20 backdrop-blur-xl' : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'}`}>
                 Editar Detalhes
               </button>
             )}
           </div>
 
-          <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
+          <div className={`rounded-2xl p-6 shadow-sm border ${isDark ? 'bg-white/10 backdrop-blur-xl border-white/15' : 'bg-white border-slate-100'}`}>
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-lg font-black text-slate-900">Fotos</h2>
-              <button className="text-nexus-blue text-sm font-bold hover:underline">Ver todas</button>
+              <h2 className={`text-lg font-black ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>Fotos</h2>
+              <button className={`text-sm font-bold hover:underline ${isDark ? 'text-[#d7bb76]' : 'text-nexus-blue'}`}>Ver todas</button>
             </div>
             <div className="grid grid-cols-3 gap-2 rounded-xl overflow-hidden">
               {[1, 2, 3, 4, 5, 6].map((i) => (
@@ -765,7 +794,7 @@ export default function UserProfileView({ onEdit, userId, onSendMessage }: UserP
                   key={`user-photo-${i}`} 
                   src={`https://picsum.photos/seed/${username}-photo-${i}/200/200`} 
                   alt="Photo" 
-                  className="aspect-square object-cover hover:opacity-80 cursor-pointer transition-all border border-slate-100"
+                  className={`aspect-square object-cover hover:opacity-80 cursor-pointer transition-all ${isDark ? 'border border-white/10' : 'border border-slate-100'}`}
                 />
               ))}
             </div>
@@ -789,15 +818,15 @@ export default function UserProfileView({ onEdit, userId, onSendMessage }: UserP
                   />
                 ))
               ) : (
-                <div className="bg-white rounded-2xl p-12 text-center border border-slate-100 shadow-sm">
-                  <ImageIcon className="w-16 h-16 text-slate-200 mx-auto mb-4" />
-                  <p className="text-slate-400 font-black uppercase tracking-widest text-sm">Nenhuma publicação ainda</p>
+                <div className={`rounded-2xl p-12 text-center border shadow-sm ${isDark ? 'bg-white/10 border-white/15 backdrop-blur-xl' : 'bg-white border-slate-100'}`}>
+                  <ImageIcon className={`w-16 h-16 mx-auto mb-4 ${isDark ? 'text-slate-600' : 'text-slate-200'}`} />
+                  <p className={`font-black uppercase tracking-widest text-sm ${isDark ? 'text-slate-300' : 'text-slate-400'}`}>Nenhuma publicação ainda</p>
                 </div>
               )}
             </>
           ) : (
-            <div className="bg-white rounded-2xl p-12 text-center border border-slate-100 shadow-sm">
-              <p className="text-slate-500 font-bold">Esta seção está em desenvolvimento.</p>
+            <div className={`rounded-2xl p-12 text-center border shadow-sm ${isDark ? 'bg-white/10 border-white/15 backdrop-blur-xl' : 'bg-white border-slate-100'}`}>
+              <p className={`font-bold ${isDark ? 'text-slate-300' : 'text-slate-500'}`}>Esta seção está em desenvolvimento.</p>
             </div>
           )}
         </div>
