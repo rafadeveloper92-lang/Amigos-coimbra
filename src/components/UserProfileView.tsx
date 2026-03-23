@@ -349,7 +349,13 @@ export default function UserProfileView({ onEdit, userId, onSendMessage }: UserP
           {/* Avatar - Overlapping Cover */}
           <div className="flex flex-col md:flex-row items-start md:items-end gap-4 md:gap-6">
             <div className="relative group">
-              <div className={`w-28 h-28 md:w-40 md:h-40 rounded-full border-4 overflow-hidden ${isDark ? 'border-[#d7bb76] shadow-[0_0_0_3px_rgba(15,23,42,0.9),0_10px_34px_rgba(0,0,0,0.5)] bg-slate-900' : 'border-white shadow-lg bg-slate-100'}`}>
+              {isDark && (
+                <>
+                  <div className="absolute -inset-[4px] rounded-full bg-gradient-to-br from-[#f8e6b0] via-[#d7bb76] to-[#8a6a2b] shadow-[0_0_28px_rgba(215,187,118,0.38)]" />
+                  <div className="absolute -inset-[1px] rounded-full border border-white/35 pointer-events-none" />
+                </>
+              )}
+              <div className={`relative w-28 h-28 md:w-40 md:h-40 rounded-full border-4 overflow-hidden ${isDark ? 'border-[#d7bb76] shadow-[0_0_0_3px_rgba(15,23,42,0.9),0_14px_40px_rgba(0,0,0,0.55)] bg-slate-900' : 'border-white shadow-lg bg-slate-100'}`}>
                 <img src={avatarUrl} alt={displayName} className="w-full h-full object-cover" />
               </div>
               {isOwnProfile && (
@@ -369,7 +375,7 @@ export default function UserProfileView({ onEdit, userId, onSendMessage }: UserP
                 <div className="flex items-center gap-2">
                   <h1 className={`text-2xl md:text-3xl font-black tracking-tight ${isDark ? 'text-slate-100 drop-shadow-[0_2px_6px_rgba(0,0,0,0.35)]' : 'text-slate-900'}`}>{displayName}</h1>
                   {profile?.role === 'admin' && (
-                    <span className={`text-[9px] font-black px-2 py-0.5 rounded-md uppercase tracking-widest shadow-sm ${isDark ? 'bg-[#d7bb76] text-[#1e293b]' : 'bg-nexus-blue text-white'}`}>
+                    <span className={`text-[9px] font-black px-2.5 py-0.5 rounded-md uppercase tracking-widest shadow-sm border ${isDark ? 'bg-gradient-to-r from-[#f8e6b0] to-[#d7bb76] text-[#1e293b] border-[#b8934f]' : 'bg-nexus-blue text-white border-transparent'}`}>
                       Admin
                     </span>
                   )}
@@ -385,15 +391,21 @@ export default function UserProfileView({ onEdit, userId, onSendMessage }: UserP
               <div className="flex gap-2 w-full md:w-auto">
                 <button 
                   onClick={onEdit}
-                  className={`flex-1 md:flex-none px-6 py-2 rounded-lg font-bold flex items-center justify-center gap-2 transition-all text-sm border shadow-sm ${isDark ? 'bg-white/10 hover:bg-white/15 text-slate-100 border-white/20 backdrop-blur-xl' : 'bg-slate-100 hover:bg-slate-200 text-slate-900 border-slate-200'}`}
+                  className={`flex-1 md:flex-none px-6 py-2 rounded-lg font-bold flex items-center justify-center gap-2 transition-all text-sm border shadow-sm ${isDark ? 'bg-slate-900/55 hover:bg-slate-900/70 text-slate-100 border-[#d7bb76]/45 backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_10px_26px_rgba(2,6,23,0.45)]' : 'bg-slate-100 hover:bg-slate-200 text-slate-900 border-slate-200'}`}
                 >
-                  <Edit3 className="w-4 h-4" />
+                  {isDark ? (
+                    <span className="w-5 h-5 rounded-full bg-[#d7bb76]/20 border border-[#d7bb76]/45 inline-flex items-center justify-center">
+                      <Edit3 className="w-3.5 h-3.5 text-[#f3dd9b]" />
+                    </span>
+                  ) : (
+                    <Edit3 className="w-4 h-4" />
+                  )}
                   Editar Perfil
                 </button>
                 <div className="relative" ref={ownProfileMenuRef}>
                   <button
                     onClick={() => setShowOwnProfileMenu((prev) => !prev)}
-                    className={`p-2 rounded-lg transition-all border shadow-sm ${isDark ? 'bg-white/10 hover:bg-white/15 text-slate-100 border-white/20 backdrop-blur-xl' : 'bg-slate-100 hover:bg-slate-200 text-slate-900 border-slate-200'}`}
+                    className={`p-2 rounded-lg transition-all border shadow-sm ${isDark ? 'bg-slate-900/55 hover:bg-slate-900/70 text-slate-100 border-[#d7bb76]/40 backdrop-blur-xl' : 'bg-slate-100 hover:bg-slate-200 text-slate-900 border-slate-200'}`}
                     title="Mais opções"
                   >
                     <MoreHorizontal className="w-5 h-5" />
