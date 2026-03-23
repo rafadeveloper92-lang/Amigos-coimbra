@@ -228,7 +228,7 @@ export default function UserProfile({ onBack }: UserProfileProps) {
         >
           <ArrowLeft className="w-6 h-6 text-white/70" />
         </button>
-        <h2 className="text-2xl font-bold text-[#E50914]">Editar Perfil</h2>
+        <h2 className="text-2xl font-bold text-[#f3dd9b]">Editar Perfil</h2>
       </div>
 
       <motion.div 
@@ -242,7 +242,7 @@ export default function UserProfile({ onBack }: UserProfileProps) {
             {coverPreview ? (
               <img src={coverPreview} alt="Cover Preview" className="w-full h-full object-cover" />
             ) : (
-              <div className="w-full h-full bg-gradient-to-r from-[#E50914]/20 to-indigo-600/20 flex items-center justify-center">
+              <div className="w-full h-full bg-gradient-to-r from-[#d7bb76]/25 to-[#1d4e89]/25 flex items-center justify-center">
                 <ImageIcon className="w-12 h-12 text-white/20" />
               </div>
             )}
@@ -272,8 +272,8 @@ export default function UserProfile({ onBack }: UserProfileProps) {
                   onChange={handleAvatarChange}
                   className="absolute inset-0 opacity-0 cursor-pointer z-10"
                 />
-                <div className="absolute bottom-1 right-1 bg-[#E50914] p-2 rounded-full border-4 border-[#141414] shadow-md z-20 pointer-events-none group-hover:scale-110 transition-transform">
-                  <Camera className="text-white w-5 h-5" />
+                <div className="absolute bottom-1 right-1 bg-[#d7bb76] p-2 rounded-full border-4 border-[#141414] shadow-md z-20 pointer-events-none group-hover:scale-110 transition-transform">
+                  <Camera className="text-[#0f172a] w-5 h-5" />
                 </div>
               </div>
             </div>
@@ -303,7 +303,7 @@ export default function UserProfile({ onBack }: UserProfileProps) {
                     required
                     value={formData.firstName}
                     onChange={handleInputChange}
-                    className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-white focus:outline-none focus:border-[#E50914] focus:ring-2 focus:ring-[#E50914]/10 transition-all"
+                    className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-white focus:outline-none focus:border-[#d7bb76] focus:ring-2 focus:ring-[#d7bb76]/20 transition-all"
                     placeholder="Seu nome"
                   />
                 </div>
@@ -315,7 +315,7 @@ export default function UserProfile({ onBack }: UserProfileProps) {
                     required
                     value={formData.lastName}
                     onChange={handleInputChange}
-                    className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-white focus:outline-none focus:border-[#E50914] focus:ring-2 focus:ring-[#E50914]/10 transition-all"
+                    className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-white focus:outline-none focus:border-[#d7bb76] focus:ring-2 focus:ring-[#d7bb76]/20 transition-all"
                     placeholder="Sobrenome"
                   />
                 </div>
@@ -334,7 +334,7 @@ export default function UserProfile({ onBack }: UserProfileProps) {
                     className={`w-full bg-white/5 border ${
                       usernameAvailable === true ? 'border-emerald-500' : 
                       usernameAvailable === false ? 'border-red-500' : 'border-white/10'
-                    } rounded-xl py-3 pl-10 pr-10 text-white focus:outline-none focus:border-[#E50914] focus:ring-2 focus:ring-[#E50914]/10 transition-all`}
+                    } rounded-xl py-3 pl-10 pr-10 text-white focus:outline-none focus:border-[#d7bb76] focus:ring-2 focus:ring-[#d7bb76]/20 transition-all`}
                     placeholder="username"
                   />
                   <div className="absolute right-4 top-1/2 -translate-y-1/2">
@@ -360,7 +360,7 @@ export default function UserProfile({ onBack }: UserProfileProps) {
                   value={formData.bio}
                   onChange={handleInputChange}
                   rows={3}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-white focus:outline-none focus:border-[#E50914] focus:ring-2 focus:ring-[#E50914]/10 transition-all resize-none"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-white focus:outline-none focus:border-[#d7bb76] focus:ring-2 focus:ring-[#d7bb76]/20 transition-all resize-none"
                   placeholder="Conte um pouco sobre você..."
                 />
               </div>
@@ -376,7 +376,7 @@ export default function UserProfile({ onBack }: UserProfileProps) {
                       name="birthdate"
                       value={formData.birthdate}
                       onChange={handleInputChange}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-10 px-4 text-white focus:outline-none focus:border-[#E50914] focus:ring-2 focus:ring-[#E50914]/10 transition-all [color-scheme:dark]"
+                      className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-10 px-4 text-white focus:outline-none focus:border-[#d7bb76] focus:ring-2 focus:ring-[#d7bb76]/20 transition-all [color-scheme:dark]"
                     />
                   </div>
                 </div>
@@ -389,7 +389,7 @@ export default function UserProfile({ onBack }: UserProfileProps) {
                       name="nationality"
                       value={formData.nationality}
                       onChange={handleInputChange}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-10 px-4 text-white focus:outline-none focus:border-[#E50914] focus:ring-2 focus:ring-[#E50914]/10 transition-all appearance-none"
+                      className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-10 px-4 text-white focus:outline-none focus:border-[#d7bb76] focus:ring-2 focus:ring-[#d7bb76]/20 transition-all appearance-none"
                     >
                       {nationalities.map(nat => (
                         <option key={nat.value} value={nat.value} className="bg-[#1a1a1a]">{nat.label}</option>
@@ -404,7 +404,7 @@ export default function UserProfile({ onBack }: UserProfileProps) {
                     name="gender"
                     value={formData.gender}
                     onChange={handleInputChange}
-                    className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-white focus:outline-none focus:border-[#E50914] focus:ring-2 focus:ring-[#E50914]/10 transition-all appearance-none"
+                    className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-white focus:outline-none focus:border-[#d7bb76] focus:ring-2 focus:ring-[#d7bb76]/20 transition-all appearance-none"
                   >
                     <option value="male" className="bg-[#1a1a1a]">Masculino</option>
                     <option value="female" className="bg-[#1a1a1a]">Feminino</option>
@@ -420,7 +420,7 @@ export default function UserProfile({ onBack }: UserProfileProps) {
                       name="relationship"
                       value={formData.relationship}
                       onChange={handleInputChange}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-10 px-4 text-white focus:outline-none focus:border-[#E50914] focus:ring-2 focus:ring-[#E50914]/10 transition-all appearance-none"
+                      className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-10 px-4 text-white focus:outline-none focus:border-[#d7bb76] focus:ring-2 focus:ring-[#d7bb76]/20 transition-all appearance-none"
                     >
                       {relationships.map(rel => (
                         <option key={rel.value} value={rel.value} className="bg-[#1a1a1a]">{rel.label}</option>
@@ -438,7 +438,7 @@ export default function UserProfile({ onBack }: UserProfileProps) {
                       name="city"
                       value={formData.city}
                       onChange={handleInputChange}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-10 px-4 text-white focus:outline-none focus:border-[#E50914] focus:ring-2 focus:ring-[#E50914]/10 transition-all"
+                      className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-10 px-4 text-white focus:outline-none focus:border-[#d7bb76] focus:ring-2 focus:ring-[#d7bb76]/20 transition-all"
                       placeholder="Sua cidade"
                     />
                   </div>
@@ -453,7 +453,7 @@ export default function UserProfile({ onBack }: UserProfileProps) {
                       name="occupation"
                       value={formData.occupation}
                       onChange={handleInputChange}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-10 px-4 text-white focus:outline-none focus:border-[#E50914] focus:ring-2 focus:ring-[#E50914]/10 transition-all"
+                      className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-10 px-4 text-white focus:outline-none focus:border-[#d7bb76] focus:ring-2 focus:ring-[#d7bb76]/20 transition-all"
                       placeholder="Ex: Desenvolvedor, Estudante..."
                     />
                   </div>
@@ -464,7 +464,7 @@ export default function UserProfile({ onBack }: UserProfileProps) {
                 <button
                   type="submit"
                   disabled={loading || !usernameAvailable}
-                  className="w-full bg-[#E50914] text-white font-bold py-4 rounded-xl hover:bg-[#b20710] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-[#E50914]/20"
+                  className="w-full bg-gradient-to-r from-[#d7bb76] to-[#b78a37] text-[#0f172a] font-bold py-4 rounded-xl hover:from-[#e2c78f] hover:to-[#c59641] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-[#d7bb76]/25"
                 >
                   {loading ? (
                     <>
