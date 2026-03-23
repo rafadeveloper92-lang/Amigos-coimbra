@@ -18,3 +18,19 @@ View your app in AI Studio: https://ai.studio/apps/ffdf2977-00ff-4215-b0ea-3bd9b
 2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
 3. Run the app:
    `npm run dev`
+
+## Deploy público fixo (GitHub Pages)
+
+Este projeto agora está configurado para deploy automático no **GitHub Pages** via workflow:
+
+- Arquivo: `.github/workflows/deploy-pages.yml`
+- URL final (fixa): `https://<seu-usuario>.github.io/<seu-repositorio>/`
+
+### Pré-requisitos no GitHub
+
+1. Em **Settings > Pages**, selecione **Build and deployment = GitHub Actions**.
+2. Em **Settings > Secrets and variables > Actions**, crie os secrets:
+   - `VITE_SUPABASE_URL`
+   - `VITE_SUPABASE_ANON_KEY`
+
+Depois disso, cada push em `main` (ou nesta branch de preview) publica automaticamente a versão online.
