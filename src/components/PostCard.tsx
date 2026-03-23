@@ -6,6 +6,7 @@ import { supabase } from '../services/supabaseClient';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../contexts/AuthContext';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
+import BrandWatermark from './BrandWatermark';
 
 interface PostProps {
   id: number;
@@ -35,8 +36,6 @@ const REACTIONS = [
   { id: 'angry', emoji: '😡', label: 'Raiva', color: 'text-orange-600' },
   { id: 'wow', emoji: '😮', label: 'Uau', color: 'text-yellow-400' },
 ];
-const POST_WATERMARK = 'Amigos Coimbra';
-
 export default function PostCard({ id, userId, author, author_avatar, group, time, content, image, likes: initialLikes, comments: initialComments, reaction_counts: initialReactionCounts, isNews, userReaction, autoOpenComments, onDelete, onViewProfile, onSendMessage }: PostProps) {
   const [likes, setLikes] = useState(initialLikes);
   const [reactionCounts, setReactionCounts] = useState<Record<string, number>>(initialReactionCounts || {});
@@ -421,10 +420,8 @@ export default function PostCard({ id, userId, author, author_avatar, group, tim
           onClick={() => setIsFullscreen(true)}
         >
           <img src={image} alt="Post content" className="w-full h-full object-cover" />
-          <div className="absolute right-3 bottom-3 pointer-events-none select-none">
-            <span className="text-[10px] font-bold tracking-wide text-white/75 bg-black/35 rounded-full px-2 py-1 border border-white/20">
-              {POST_WATERMARK}
-            </span>
+          <div className="absolute right-3 bottom-3 z-10">
+            <BrandWatermark compact />
           </div>
         </div>
       )}
@@ -491,10 +488,8 @@ export default function PostCard({ id, userId, author, author_avatar, group, tim
                       Pince para zoom • Arraste para mover • Toque duplo para resetar
                     </div>
 
-                    <div className="absolute right-6 bottom-10 pointer-events-none select-none z-[210]">
-                      <span className="text-[10px] font-bold tracking-wide text-white/75 bg-black/35 rounded-full px-2 py-1 border border-white/20">
-                        {POST_WATERMARK}
-                      </span>
+                    <div className="absolute right-6 bottom-10 z-[210]">
+                      <BrandWatermark compact />
                     </div>
 
                     <TransformComponent

@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion } from 'motion/react';
-import { X, ChevronLeft, ChevronRight, MoreVertical, Trash2, MapPin, Music, Play, Pause, Heart, MessageCircle, Send, Star } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, MoreVertical, Trash2, MapPin, Music, Play, Pause, Heart, MessageCircle, Send, Star, Volume2, VolumeX } from 'lucide-react';
 import { Story } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { dataService } from '../services/dataService';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import BrandWatermark from './BrandWatermark';
 
 interface StoryViewerProps {
   stories: Story[];
@@ -40,8 +41,6 @@ const toDeterministicTrackId = (title: string, artist?: string) => {
   return Math.abs(hash) || 1;
 };
 
-const STORY_WATERMARK = 'Amigos Coimbra';
-
 export default function StoryViewer({ stories, initialIndex = 0, onClose, onOpenMessages }: StoryViewerProps) {
   const { user: authUser } = useAuth();
   const [localStories, setLocalStories] = useState<Story[]>(stories);
@@ -58,7 +57,10 @@ export default function StoryViewer({ stories, initialIndex = 0, onClose, onOpen
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
   const [isMusicPlaying, setIsMusicPlaying] = useState(false);
+  const [isVideoMuted, setIsVideoMuted] = useState(false);
+  const [videoAudioHint, setVideoAudioHint] = useState<string | null>(null);
   const [nowTick, setNowTick] = useState(Date.now());
   const [likedStories, setLikedStories] = useState<Record<string, boolean>>({});
   const [likeCounts, setLikeCounts] = useState<Record<string, number>>({});
@@ -118,7 +120,7 @@ export default function StoryViewer({ stories, initialIndex = 0, onClose, onOpen
   useEffect(() => {
     if (!audioRef.current) return;
 
-    if (!currentStory?.music_preview_url) {
+    if (!currentStory?.music_preview_url || currentStory.media_type === 'video') {
       audioRef.current.pause();
       audioRef.current.src = '';
       setIsMusicPlaying(false);
@@ -134,6 +136,32 @@ export default function StoryViewer({ stories, initialIndex = 0, onClose, onOpen
       setIsMusicPlaying(false);
     });
   }, [currentStory?.id, currentStory?.music_preview_url]);
+
+  useEffect(() => {
+    if (currentStory?.media_type !== 'video') {
+      setIsVideoMuted(false);
+      setVideoAudioHint(null);
+      return;
+    }
+
+    const video = videoRef.current;
+    if (!video) return;
+    video.muted = false;
+    setIsVideoMuted(false);
+    setVideoAudioHint(null);
+
+    video.play().catch(async () => {
+      // Fallback para políticas de autoplay: inicia mudo e permite ativar no botão.
+      video.muted = true;
+      setIsVideoMuted(true);
+      setVideoAudioHint('Toque no som para ouvir o áudio do vídeo');
+      try {
+        await video.play();
+      } catch {
+        // no-op
+      }
+    });
+  }, [currentStory?.id, currentStory?.media_type, currentStory?.media_url]);
 
   useEffect(() => {
     setShowComments(false);
@@ -176,6 +204,9 @@ export default function StoryViewer({ stories, initialIndex = 0, onClose, onOpen
       if (audioRef.current) {
         audioRef.current.pause();
       }
+      if (videoRef.current) {
+        videoRef.current.pause();
+      }
     };
   }, []);
 
@@ -211,6 +242,10 @@ export default function StoryViewer({ stories, initialIndex = 0, onClose, onOpen
       audioRef.current.pause();
       audioRef.current.currentTime = 0;
     }
+    if (videoRef.current) {
+      videoRef.current.pause();
+      videoRef.current.currentTime = 0;
+    }
     setIsMusicPlaying(false);
     if (currentIndex < localStories.length - 1) {
       setCurrentIndex(prev => prev + 1);
@@ -226,6 +261,10 @@ export default function StoryViewer({ stories, initialIndex = 0, onClose, onOpen
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.currentTime = 0;
+    }
+    if (videoRef.current) {
+      videoRef.current.pause();
+      videoRef.current.currentTime = 0;
     }
     setIsMusicPlaying(false);
     if (currentIndex > 0) {
@@ -281,6 +320,10 @@ export default function StoryViewer({ stories, initialIndex = 0, onClose, onOpen
       audioRef.current.pause();
       audioRef.current.currentTime = 0;
     }
+    if (videoRef.current) {
+      videoRef.current.pause();
+      videoRef.current.currentTime = 0;
+    }
     setIsMusicPlaying(false);
     onClose();
   };
@@ -309,6 +352,24 @@ export default function StoryViewer({ stories, initialIndex = 0, onClose, onOpen
       setIsMusicPlaying(true);
     } catch {
       setIsMusicPlaying(false);
+    }
+  };
+
+  const toggleVideoSound = async () => {
+    if (currentStory.media_type !== 'video') return;
+    const video = videoRef.current;
+    if (!video) return;
+
+    const nextMuted = !isVideoMuted;
+    video.muted = nextMuted;
+    setIsVideoMuted(nextMuted);
+    if (!nextMuted) {
+      setVideoAudioHint(null);
+      try {
+        await video.play();
+      } catch {
+        setVideoAudioHint('Não foi possível ativar o áudio automaticamente');
+      }
     }
   };
 
@@ -630,11 +691,12 @@ export default function StoryViewer({ stories, initialIndex = 0, onClose, onOpen
           >
             {currentStory.media_type === 'video' ? (
               <video
+                ref={videoRef}
                 src={currentStory.media_url}
                 autoPlay
-                muted
                 playsInline
                 className="w-full h-full object-cover"
+                muted={isVideoMuted}
               />
             ) : (
               <img
@@ -692,10 +754,28 @@ export default function StoryViewer({ stories, initialIndex = 0, onClose, onOpen
           </div>
         )}
 
-        <div className="absolute right-4 bottom-24 z-20 pointer-events-none select-none">
-          <span className="text-[10px] font-bold tracking-wide text-white/70 bg-black/35 rounded-full px-2 py-1 border border-white/20">
-            {STORY_WATERMARK}
-          </span>
+        {currentStory.media_type === 'video' && (
+          <div className="absolute right-4 bottom-36 z-20">
+            <button
+              onClick={() => { void toggleVideoSound(); }}
+              className="p-2 rounded-full bg-black/55 border border-white/25 text-white"
+              title={isVideoMuted ? 'Ativar áudio do vídeo' : 'Silenciar vídeo'}
+            >
+              {isVideoMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+            </button>
+          </div>
+        )}
+
+        {videoAudioHint && currentStory.media_type === 'video' && (
+          <div className="absolute right-4 bottom-44 z-20">
+            <div className="bg-black/65 border border-white/20 text-white text-[10px] font-semibold px-2 py-1 rounded-lg">
+              {videoAudioHint}
+            </div>
+          </div>
+        )}
+
+        <div className="absolute right-4 bottom-24 z-20">
+          <BrandWatermark />
         </div>
 
         {/* Footer / Actions */}

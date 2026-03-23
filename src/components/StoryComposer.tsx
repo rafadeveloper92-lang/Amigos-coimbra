@@ -23,6 +23,7 @@ import { supabase } from '../services/supabaseClient';
 import { dataService } from '../services/dataService';
 import { StorySticker } from '../types';
 import { useAuth } from '../contexts/AuthContext';
+import BrandWatermark from './BrandWatermark';
 
 type ComposerPanel = 'none' | 'media' | 'text' | 'stickers' | 'mentions' | 'music' | 'location';
 type MusicDisplayMode = 'album' | 'lyrics';
@@ -128,7 +129,6 @@ const STICKER_POSITIONS = [
   { x: 120, y: 140 },
 ];
 const TOP_MUSIC_TERMS = ['top brasil', 'viral brasil', 'pop hits', 'sertanejo', 'forró hits'];
-const STORY_WATERMARK = 'Amigos Coimbra';
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
@@ -372,6 +372,7 @@ export default function StoryComposer({
   const [playingTrackId, setPlayingTrackId] = useState<number | null>(null);
   const [activeDragTarget, setActiveDragTarget] = useState<string | null>(null);
   const [isOverTrash, setIsOverTrash] = useState(false);
+  const [trashProximity, setTrashProximity] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(0);
   const dragTargetRef = useRef<string | null>(null);
   const overTrashRef = useRef(false);
@@ -404,6 +405,7 @@ export default function StoryComposer({
     setFavoriteTracks([]);
     setActiveDragTarget(null);
     setIsOverTrash(false);
+    setTrashProximity(0);
     dragTargetRef.current = null;
     overTrashRef.current = false;
 
@@ -704,15 +706,24 @@ export default function StoryComposer({
     Math.abs(transform.x) <= 92 && Math.abs(transform.y - trashCenterY) <= 86
   );
 
+  const getTrashProximity = (transform: OverlayTransform) => {
+    const dx = transform.x;
+    const dy = transform.y - trashCenterY;
+    const dist = Math.sqrt((dx * dx) + (dy * dy));
+    return clamp(1 - dist / 230, 0, 1);
+  };
+
   const startDraggingTarget = (target: string) => {
     dragTargetRef.current = target;
     overTrashRef.current = false;
     setActiveDragTarget(target);
     setIsOverTrash(false);
+    setTrashProximity(0);
   };
 
   const updateDraggingTarget = (target: string, next: OverlayTransform) => {
     if (dragTargetRef.current !== target) return;
+    setTrashProximity(getTrashProximity(next));
     const overTrash = isOverDeleteZone(next);
     overTrashRef.current = overTrash;
     setIsOverTrash(overTrash);
@@ -723,6 +734,7 @@ export default function StoryComposer({
     overTrashRef.current = false;
     setActiveDragTarget(null);
     setIsOverTrash(false);
+    setTrashProximity(0);
   };
 
   const removeTargetByKey = (target: string | null) => {
@@ -995,30 +1007,47 @@ export default function StoryComposer({
           </TransformableItem>
         )}
 
-        <div className="absolute right-4 bottom-24 z-20 pointer-events-none select-none">
-          <span className="text-[10px] font-bold tracking-wide text-white/70 bg-black/35 rounded-full px-2 py-1 border border-white/20">
-            {STORY_WATERMARK}
-          </span>
+        <div className="absolute right-4 bottom-24 z-20">
+          <BrandWatermark />
         </div>
 
         <AnimatePresence>
           {activeDragTarget && (
             <motion.div
               initial={{ opacity: 0, y: 30, scale: 0.9 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
+              animate={{
+                opacity: 1,
+                y: isOverTrash ? -8 : -(trashProximity * 3),
+                scale: isOverTrash ? 1.16 : 1 + (trashProximity * 0.12),
+              }}
               exit={{ opacity: 0, y: 30, scale: 0.9 }}
               className="absolute left-1/2 bottom-8 z-50 -translate-x-1/2 pointer-events-none"
             >
-              <div
+              <motion.div
                 className={`min-w-[170px] rounded-2xl px-4 py-3 text-white text-xs font-bold shadow-2xl border transition-all duration-150 flex items-center justify-center gap-2 ${
                   isOverTrash
-                    ? 'bg-red-600/95 border-red-300 scale-105'
+                    ? 'bg-red-600/95 border-red-300'
                     : 'bg-black/70 border-white/20'
                 }`}
+                animate={isOverTrash ? { rotate: [0, -4, 4, -3, 3, 0] } : { rotate: 0 }}
+                transition={{ duration: 0.35 }}
               >
-                <Trash2 className="w-4 h-4" />
+                <motion.div
+                  animate={isOverTrash ? { scale: [1, 1.3, 1.08] } : { scale: 1 + (trashProximity * 0.2) }}
+                  transition={{ duration: 0.25 }}
+                >
+                  <Trash2 className="w-4 h-4" />
+                </motion.div>
                 {isOverTrash ? 'Solte para excluir' : 'Arraste para a lixeira'}
-              </div>
+              </motion.div>
+              <motion.div
+                className="absolute -inset-2 rounded-3xl border border-red-300/60"
+                animate={{
+                  opacity: isOverTrash ? 0.9 : 0.15 + (trashProximity * 0.45),
+                  scale: isOverTrash ? 1.18 : 1 + (trashProximity * 0.16),
+                }}
+                transition={{ duration: 0.16 }}
+              />
             </motion.div>
           )}
         </AnimatePresence>
