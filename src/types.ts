@@ -122,7 +122,19 @@ export interface Story {
   text_font?: string;
   location_name?: string;
   music_title?: string;
+  music_artist?: string;
+  music_cover_url?: string;
+  music_preview_url?: string;
+  mention_tags?: string[];
+  stickers?: StorySticker[];
   created_at: string;
   expires_at: string;
   profile?: Profile;
+}
+
+export interface StorySticker {
+  id: string;
+  label: string;
+  x: number;
+  y: number;
 }

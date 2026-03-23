@@ -56,6 +56,11 @@ export const dataService = {
       text_font: story.text_font || null,
       location_name: story.location_name || null,
       music_title: story.music_title || null,
+      music_artist: story.music_artist || null,
+      music_cover_url: story.music_cover_url || null,
+      music_preview_url: story.music_preview_url || null,
+      mention_tags: story.mention_tags || null,
+      stickers: story.stickers || null,
     };
 
     const { data, error } = await supabase

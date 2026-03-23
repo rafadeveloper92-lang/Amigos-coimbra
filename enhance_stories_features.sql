@@ -6,7 +6,12 @@ ALTER TABLE public.stories
   ADD COLUMN IF NOT EXISTS text_color TEXT,
   ADD COLUMN IF NOT EXISTS text_font TEXT,
   ADD COLUMN IF NOT EXISTS location_name TEXT,
-  ADD COLUMN IF NOT EXISTS music_title TEXT;
+  ADD COLUMN IF NOT EXISTS music_title TEXT,
+  ADD COLUMN IF NOT EXISTS music_artist TEXT,
+  ADD COLUMN IF NOT EXISTS music_cover_url TEXT,
+  ADD COLUMN IF NOT EXISTS music_preview_url TEXT,
+  ADD COLUMN IF NOT EXISTS mention_tags TEXT[],
+  ADD COLUMN IF NOT EXISTS stickers JSONB;
 
 -- Garante que stories continuem expirando em 24h por padrão
 ALTER TABLE public.stories

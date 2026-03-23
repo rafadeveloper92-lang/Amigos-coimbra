@@ -208,11 +208,27 @@ export default function StoryViewer({ stories, onClose }: StoryViewerProps) {
               </div>
             )}
             {currentStory.music_title && (
-              <div className="px-3 py-1 rounded-full bg-black/50 text-white text-xs font-semibold flex items-center gap-1">
+              <div className="px-3 py-1 rounded-full bg-black/50 text-white text-xs font-semibold flex items-center gap-1 max-w-[260px]">
                 <Music className="w-3.5 h-3.5" />
-                {currentStory.music_title}
+                <span className="truncate">
+                  {currentStory.music_title}
+                  {currentStory.music_artist ? ` - ${currentStory.music_artist}` : ''}
+                </span>
               </div>
             )}
+          </div>
+        )}
+
+        {currentStory.mention_tags && currentStory.mention_tags.length > 0 && (
+          <div className="absolute top-36 left-4 right-4 z-20 flex flex-wrap gap-2">
+            {currentStory.mention_tags.map((mention) => (
+              <span
+                key={mention}
+                className="px-2.5 py-1 rounded-full bg-black/55 text-white text-xs font-semibold"
+              >
+                @{mention}
+              </span>
+            ))}
           </div>
         )}
 
@@ -247,6 +263,16 @@ export default function StoryViewer({ stories, onClose }: StoryViewerProps) {
               className="w-full h-full object-contain"
             />
           )}
+
+          {currentStory.stickers && currentStory.stickers.map((sticker) => (
+            <div
+              key={sticker.id}
+              className="absolute z-20 text-3xl md:text-4xl drop-shadow-[0_2px_10px_rgba(0,0,0,0.85)] pointer-events-none"
+              style={{ left: `${sticker.x}%`, top: `${sticker.y}%` }}
+            >
+              {sticker.label}
+            </div>
+          ))}
 
           {/* Navigation Overlay */}
           <div className="absolute inset-0 flex">
