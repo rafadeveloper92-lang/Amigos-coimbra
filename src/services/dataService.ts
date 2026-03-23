@@ -26,9 +26,18 @@ export const dataService = {
   },
 
   async createStory(story: Partial<Story>) {
+    if (!story.user_id || !story.media_url || !story.media_type) {
+      throw new Error('Dados obrigatórios do story ausentes.');
+    }
+
+    const storyPayload = {
+      ...story,
+      expires_at: story.expires_at || new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+    };
+
     const { data, error } = await supabase
       .from('stories')
-      .insert([story])
+      .insert([storyPayload])
       .select();
     if (error) throw error;
     return data;
@@ -36,23 +45,28 @@ export const dataService = {
 
   async uploadStoryMedia(file: File): Promise<string | null> {
     const fileExt = file.name.split('.').pop();
-    const fileName = `${Math.random()}.${fileExt}`;
+    const fileName = `${Date.now()}-${Math.random()}.${fileExt}`;
     const filePath = `stories/${fileName}`;
 
-    const { error: uploadError } = await supabase.storage
-      .from('images')
-      .upload(filePath, file);
+    // Tenta primeiro o bucket "images" e faz fallback para "highlights"
+    // (que costuma já estar configurado para upload de mídia no app).
+    const candidateBuckets = ['images', 'highlights'] as const;
+    for (const bucket of candidateBuckets) {
+      const { error: uploadError } = await supabase.storage
+        .from(bucket)
+        .upload(filePath, file);
 
-    if (uploadError) {
-      console.error('Error uploading story media:', uploadError);
-      return null;
+      if (!uploadError) {
+        const { data } = supabase.storage
+          .from(bucket)
+          .getPublicUrl(filePath);
+        return data.publicUrl;
+      }
+
+      console.error(`Error uploading story media to bucket "${bucket}":`, uploadError);
     }
 
-    const { data } = supabase.storage
-      .from('images')
-      .getPublicUrl(filePath);
-
-    return data.publicUrl;
+    return null;
   },
 
   async getAds(): Promise<Ad[]> {

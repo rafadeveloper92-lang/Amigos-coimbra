@@ -12,6 +12,7 @@ export default function StoriesBar() {
   const [isViewerOpen, setIsViewerOpen] = useState(false);
   const [selectedUserStories, setSelectedUserStories] = useState<Story[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -43,30 +44,55 @@ export default function StoriesBar() {
         .from('profiles')
         .select('*')
         .eq('id', user.id)
-        .single();
-      setCurrentUser(profile);
+        .maybeSingle();
+
+      if (profile) {
+        setCurrentUser(profile);
+      } else {
+        // Fallback para não bloquear postagem de story caso o select do profile falhe.
+        setCurrentUser({
+          id: user.id,
+          username: user.user_metadata?.username || user.email?.split('@')[0] || 'usuario',
+          first_name: user.user_metadata?.first_name || '',
+          last_name: user.user_metadata?.last_name || '',
+          avatar_url: user.user_metadata?.avatar_url || '',
+        } as Profile);
+      }
     }
   };
 
   const handleFileSelect = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !currentUser) return;
+    if (!file) return;
 
     setUploading(true);
+    setUploadError(null);
     try {
-      const mediaUrl = await dataService.uploadStoryMedia(file);
-      if (mediaUrl) {
-        await dataService.createStory({
-          user_id: currentUser.id,
-          media_url: mediaUrl,
-          media_type: file.type.startsWith('video') ? 'video' : 'image'
-        });
-        fetchStories();
+      const { data: { user } } = await supabase.auth.getUser();
+      const userId = currentUser?.id || user?.id;
+      if (!userId) {
+        throw new Error('Usuário não autenticado para criar story.');
       }
+
+      const mediaUrl = await dataService.uploadStoryMedia(file);
+      if (!mediaUrl) {
+        throw new Error('Não foi possível enviar a mídia do story.');
+      }
+
+      await dataService.createStory({
+        user_id: userId,
+        media_url: mediaUrl,
+        media_type: file.type.startsWith('video') ? 'video' : 'image'
+      });
+      fetchStories();
     } catch (error) {
       console.error('Error creating story:', error);
+      setUploadError('Não foi possível publicar o story. Tente novamente.');
     } finally {
       setUploading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
     }
   };
 
@@ -195,6 +221,14 @@ export default function StoriesBar() {
           />
         )}
       </AnimatePresence>
+
+      {uploadError && (
+        <div className="max-w-6xl mx-auto px-4 mt-3">
+          <div className="bg-red-50 border border-red-200 text-red-700 text-xs font-semibold px-3 py-2 rounded-lg">
+            {uploadError}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
