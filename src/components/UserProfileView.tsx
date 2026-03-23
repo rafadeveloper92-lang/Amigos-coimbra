@@ -6,7 +6,7 @@ import { supabase } from '../services/supabaseClient';
 import { Post as PostType, AlbumItem } from '../types';
 import PostCard from './PostCard';
 import HighlightViewer from './HighlightViewer';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import { 
   MapPin, 
   Calendar, 
@@ -70,6 +70,8 @@ export default function UserProfileView({ onEdit, userId, onSendMessage }: UserP
   const [selectedAlbumItem, setSelectedAlbumItem] = useState<AlbumItem | null>(null);
   const [isAlbumManageMode, setIsAlbumManageMode] = useState(false);
   const [draggedAlbumItemId, setDraggedAlbumItemId] = useState<number | null>(null);
+  const [dragOverAlbumItemId, setDragOverAlbumItemId] = useState<number | null>(null);
+  const [dragPointer, setDragPointer] = useState<{ x: number; y: number } | null>(null);
   const [albumSavingLayout, setAlbumSavingLayout] = useState(false);
 
   const isOwnProfile = !userId || userId === currentUser?.id;
@@ -432,12 +434,19 @@ export default function UserProfileView({ onEdit, userId, onSendMessage }: UserP
     await persistAlbumOrder(nextItems);
   };
 
-  const handleAlbumDragStart = (itemId: number) => {
+  const handleAlbumDragStart = (itemId: number, event: React.DragEvent<HTMLButtonElement>) => {
     setDraggedAlbumItemId(itemId);
+    setDragPointer({ x: event.clientX, y: event.clientY });
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', String(itemId));
   };
 
-  const handleAlbumDragOver = (event: React.DragEvent<HTMLButtonElement>) => {
+  const handleAlbumDragOver = (event: React.DragEvent<HTMLButtonElement>, targetItemId?: number) => {
     event.preventDefault();
+    setDragPointer({ x: event.clientX, y: event.clientY });
+    if (typeof targetItemId === 'number') {
+      setDragOverAlbumItemId(targetItemId);
+    }
   };
 
   const handleAlbumDrop = async (targetItemId: number) => {
@@ -456,11 +465,22 @@ export default function UserProfileView({ onEdit, userId, onSendMessage }: UserP
     const nextItems = coverItem ? [coverItem, ...reorderedTail] : reorderedTail;
     setAlbumItems(nextItems);
     setDraggedAlbumItemId(null);
+    setDragOverAlbumItemId(null);
+    setDragPointer(null);
     await persistAlbumOrder(nextItems);
+  };
+
+  const handleAlbumDragEnd = () => {
+    setDraggedAlbumItemId(null);
+    setDragOverAlbumItemId(null);
+    setDragPointer(null);
   };
 
   const coverAlbumItem = albumItems[0] || null;
   const nonCoverAlbumItems = albumItems.slice(1);
+  const draggedAlbumItem = draggedAlbumItemId
+    ? nonCoverAlbumItems.find((item) => item.id === draggedAlbumItemId) || null
+    : null;
 
   return (
     <div className={`w-full max-w-4xl mx-auto pb-24 ${isDark ? 'profile-dark-moody' : ''}`}>
@@ -1177,20 +1197,33 @@ export default function UserProfileView({ onEdit, userId, onSendMessage }: UserP
                     </div>
                   )}
 
-                  <div className="grid grid-cols-2 md:grid-cols-3 auto-rows-[110px] md:auto-rows-[130px] gap-2">
+                  <motion.div layout className="grid grid-cols-2 md:grid-cols-3 auto-rows-[110px] md:auto-rows-[130px] gap-2">
                     {(isAlbumManageMode ? nonCoverAlbumItems : nonCoverAlbumItems.slice(3)).map((item, index) => {
                       const absoluteIndex = albumItems.findIndex((albumItem) => albumItem.id === item.id);
                       return (
-                      <button
+                      <motion.button
+                        layout
                         key={item.id}
                         onClick={() => setSelectedAlbumItem(item)}
                         draggable={isAlbumManageMode}
-                        onDragStart={() => handleAlbumDragStart(item.id)}
-                        onDragOver={handleAlbumDragOver}
+                        onDragStart={(event) => handleAlbumDragStart(item.id, event)}
+                        onDragOver={(event) => handleAlbumDragOver(event, item.id)}
+                        onDragLeave={() => setDragOverAlbumItemId(null)}
                         onDrop={() => handleAlbumDrop(item.id)}
-                        onDragEnd={() => setDraggedAlbumItemId(null)}
-                        className={`relative overflow-hidden rounded-2xl border ${isDark ? 'border-white/15' : 'border-slate-100'} ${getAlbumTileClass(index, Math.max(1, albumItems.length - 1))}`}
+                        onDragEnd={handleAlbumDragEnd}
+                        className={`relative overflow-hidden rounded-2xl border transition-all duration-200 ${
+                          isDark ? 'border-white/15' : 'border-slate-100'
+                        } ${getAlbumTileClass(index, Math.max(1, albumItems.length - 1))} ${
+                          draggedAlbumItemId === item.id ? 'opacity-30 scale-95 rotate-[1deg]' : ''
+                        } ${
+                          dragOverAlbumItemId === item.id && draggedAlbumItemId !== item.id
+                            ? isDark
+                              ? 'ring-2 ring-[#d7bb76]/80 ring-offset-2 ring-offset-[#0f172a]'
+                              : 'ring-2 ring-nexus-blue/70 ring-offset-2 ring-offset-white'
+                            : ''
+                        }`}
                         style={item.accent_color ? { boxShadow: `inset 0 0 0 1px ${item.accent_color}55` } : undefined}
+                        transition={{ type: 'spring', stiffness: 380, damping: 30 }}
                       >
                         {item.media_type === 'video' ? (
                           <video
@@ -1279,19 +1312,20 @@ export default function UserProfileView({ onEdit, userId, onSendMessage }: UserP
                             </button>
                           </div>
                         )}
-                      </button>
+                      </motion.button>
                     )})}
 
                     {isOwnProfile && albumItems.length < ALBUM_MAX_ITEMS && (
-                      <button
+                      <motion.button
+                        layout
                         onClick={() => albumUploadInputRef.current?.click()}
                         className={`rounded-2xl border-2 border-dashed transition-colors flex flex-col items-center justify-center gap-1 ${isDark ? 'border-white/25 bg-white/5 hover:bg-white/10 text-slate-200' : 'border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-600'}`}
                       >
                         <Plus className="w-5 h-5" />
                         <span className="text-[11px] font-bold">Adicionar</span>
-                      </button>
+                      </motion.button>
                     )}
-                  </div>
+                  </motion.div>
                 </div>
               ) : (
                 <div className={`rounded-2xl border p-10 text-center ${isDark ? 'border-white/15 bg-white/5 text-slate-300' : 'border-slate-100 bg-slate-50 text-slate-500'}`}>
@@ -1319,6 +1353,39 @@ export default function UserProfileView({ onEdit, userId, onSendMessage }: UserP
           )}
         </div>
       </div>
+
+      <AnimatePresence>
+        {isAlbumManageMode && draggedAlbumItem && dragPointer && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.92 }}
+            animate={{ opacity: 0.95, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.92 }}
+            transition={{ duration: 0.16, ease: 'easeOut' }}
+            className="fixed pointer-events-none z-[140] w-32 h-32 rounded-2xl overflow-hidden border border-white/35 shadow-[0_20px_35px_rgba(2,6,23,0.55)]"
+            style={{
+              left: dragPointer.x - 64,
+              top: dragPointer.y - 72,
+            }}
+          >
+            {draggedAlbumItem.media_type === 'video' ? (
+              <video
+                src={draggedAlbumItem.media_url}
+                muted
+                playsInline
+                preload="metadata"
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <img src={draggedAlbumItem.media_url} alt="Prévia arraste" className="w-full h-full object-cover" />
+            )}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/5 to-transparent" />
+            <div className="absolute left-2 bottom-2 inline-flex items-center gap-1 px-2 py-1 rounded-full bg-black/45 text-white text-[10px] font-bold">
+              <GripVertical className="w-3 h-3" />
+              A mover
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {selectedAlbumItem && (
         <div
