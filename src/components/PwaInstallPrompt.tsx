@@ -169,123 +169,150 @@ export default function PwaInstallPrompt() {
     setShowPrompt(false);
   };
 
-  if (installed || !showPrompt || isStandaloneMode()) {
+  const isInstalledLikeApp = installed || isStandaloneMode();
+
+  const handleFixedInstallClick = async () => {
+    setSessionDismissed(false);
+    if (deferredPrompt) {
+      await handleInstall();
+      return;
+    }
+    setShowPrompt(true);
+  };
+
+  if (isInstalledLikeApp) {
     return null;
   }
 
   return (
-    <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0, y: 18, scale: 0.98 }}
+    <>
+      <motion.button
+        initial={{ opacity: 0, y: 14, scale: 0.96 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
-        exit={{ opacity: 0, y: 12, scale: 0.98 }}
-        transition={{ duration: 0.24, ease: 'easeOut' }}
-        className="fixed bottom-24 lg:bottom-6 left-3 right-3 lg:left-auto lg:right-6 z-[120]"
+        transition={{ duration: 0.22, ease: 'easeOut' }}
+        onClick={handleFixedInstallClick}
+        className={`fixed left-3 bottom-24 lg:bottom-6 z-[119] inline-flex items-center gap-2 rounded-full border border-nexus-gold/25 bg-gradient-to-r from-nexus-blue to-blue-500 text-white px-4 py-2.5 shadow-xl text-xs font-bold transition-transform hover:scale-[1.02] active:scale-[0.98] ${
+          showPrompt ? 'opacity-0 pointer-events-none' : 'opacity-100'
+        }`}
       >
-        <div className="max-w-md ml-auto bg-white border border-slate-200 shadow-2xl rounded-2xl overflow-hidden">
-          <div className="p-4 bg-gradient-to-r from-nexus-blue to-blue-500 text-white">
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex items-start gap-3">
-                <div className="w-10 h-10 rounded-xl bg-white/15 border border-white/20 flex items-center justify-center shrink-0">
-                  <Smartphone className="w-5 h-5" />
-                </div>
-                <div>
-                  <p className="text-sm font-extrabold">Instalar app Amigos Coimbra</p>
-                  <p className="text-[11px] text-white/85">
-                    Abra direto na tela do celular, com experiência de app nativo.
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={handleClose}
-                disabled={isSavingPreference}
-                className="p-1.5 rounded-full hover:bg-white/15 transition-colors disabled:opacity-60"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
+        <Download className="w-3.5 h-3.5" />
+        Instalar app
+      </motion.button>
 
-          <div className="p-4">
-            {deferredPrompt ? (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-xs text-slate-600">
-                    Toque em <span className="font-bold text-slate-800">Instalar</span> para adicionar ao ecrã inicial.
-                  </p>
+      <AnimatePresence>
+        {showPrompt && (
+          <motion.div
+            initial={{ opacity: 0, y: 18, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 12, scale: 0.98 }}
+            transition={{ duration: 0.24, ease: 'easeOut' }}
+            className="fixed bottom-24 lg:bottom-6 left-3 right-3 lg:left-auto lg:right-6 z-[120]"
+          >
+            <div className="max-w-md ml-auto bg-white border border-slate-200 shadow-2xl rounded-2xl overflow-hidden">
+              <div className="p-4 bg-gradient-to-r from-nexus-blue to-blue-500 text-white">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-white/15 border border-white/20 flex items-center justify-center shrink-0">
+                      <Smartphone className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-extrabold">Instalar app Amigos Coimbra</p>
+                      <p className="text-[11px] text-white/85">
+                        Abra direto na tela do celular, com experiência de app nativo.
+                      </p>
+                    </div>
+                  </div>
                   <button
-                    onClick={handleInstall}
-                    className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-nexus-blue text-white text-xs font-bold shadow-lg hover:bg-nexus-blue/90 transition-colors"
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                    Instalar
-                  </button>
-                </div>
-                <div className="flex items-center justify-end gap-2">
-                  <button
-                    onClick={handleRemindLater}
+                    onClick={handleClose}
                     disabled={isSavingPreference}
-                    className="px-3 py-1.5 rounded-full text-[11px] font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 disabled:opacity-60"
+                    className="p-1.5 rounded-full hover:bg-white/15 transition-colors disabled:opacity-60"
                   >
-                    Lembrar depois
-                  </button>
-                  <button
-                    onClick={handleHideForever}
-                    disabled={isSavingPreference}
-                    className="px-3 py-1.5 rounded-full text-[11px] font-semibold text-slate-500 hover:text-slate-700"
-                  >
-                    Não mostrar
+                    <X className="w-4 h-4" />
                   </button>
                 </div>
               </div>
-            ) : (
-              <div className="space-y-3">
-                <div className="space-y-2">
-                  {isIosManualInstall ? (
-                    <>
+              <div className="p-4">
+                {deferredPrompt ? (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between gap-3">
                       <p className="text-xs text-slate-600">
-                        No iPhone: toque em <span className="font-bold">Partilhar</span> e depois em{' '}
-                        <span className="font-bold">Adicionar ao Ecrã principal</span>.
+                        Toque em <span className="font-bold text-slate-800">Instalar</span> para adicionar ao ecrã inicial.
                       </p>
-                      <div className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-slate-100 text-slate-700 text-[11px] font-semibold">
-                        <Share2 className="w-3.5 h-3.5" />
-                        Partilhar → Adicionar ao ecrã principal
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <p className="text-xs text-slate-600">
-                        Se o botão de instalar não apareceu, abra o menu do navegador (<span className="font-bold">⋮</span>)
-                        e toque em <span className="font-bold">Instalar app</span> / <span className="font-bold">Adicionar ao ecrã inicial</span>.
-                      </p>
-                      <div className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-slate-100 text-slate-700 text-[11px] font-semibold">
+                      <button
+                        onClick={handleInstall}
+                        className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-nexus-blue text-white text-xs font-bold shadow-lg hover:bg-nexus-blue/90 transition-colors"
+                      >
                         <Download className="w-3.5 h-3.5" />
-                        Menu do navegador → Instalar app
-                      </div>
-                    </>
-                  )}
-                </div>
-                <div className="flex items-center justify-end gap-2">
-                  <button
-                    onClick={handleRemindLater}
-                    disabled={isSavingPreference}
-                    className="px-3 py-1.5 rounded-full text-[11px] font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 disabled:opacity-60"
-                  >
-                    Lembrar depois
-                  </button>
-                  <button
-                    onClick={handleHideForever}
-                    disabled={isSavingPreference}
-                    className="px-3 py-1.5 rounded-full text-[11px] font-semibold text-slate-500 hover:text-slate-700"
-                  >
-                    Não mostrar
-                  </button>
-                </div>
+                        Instalar
+                      </button>
+                    </div>
+                    <div className="flex items-center justify-end gap-2">
+                      <button
+                        onClick={handleRemindLater}
+                        disabled={isSavingPreference}
+                        className="px-3 py-1.5 rounded-full text-[11px] font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 disabled:opacity-60"
+                      >
+                        Lembrar depois
+                      </button>
+                      <button
+                        onClick={handleHideForever}
+                        disabled={isSavingPreference}
+                        className="px-3 py-1.5 rounded-full text-[11px] font-semibold text-slate-500 hover:text-slate-700"
+                      >
+                        Não mostrar
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="space-y-2">
+                      {isIosManualInstall ? (
+                        <>
+                          <p className="text-xs text-slate-600">
+                            No iPhone: toque em <span className="font-bold">Partilhar</span> e depois em{' '}
+                            <span className="font-bold">Adicionar ao Ecrã principal</span>.
+                          </p>
+                          <div className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-slate-100 text-slate-700 text-[11px] font-semibold">
+                            <Share2 className="w-3.5 h-3.5" />
+                            Partilhar → Adicionar ao ecrã principal
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <p className="text-xs text-slate-600">
+                            Se o botão de instalar não apareceu, abra o menu do navegador (<span className="font-bold">⋮</span>)
+                            e toque em <span className="font-bold">Instalar app</span> / <span className="font-bold">Adicionar ao ecrã inicial</span>.
+                          </p>
+                          <div className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-slate-100 text-slate-700 text-[11px] font-semibold">
+                            <Download className="w-3.5 h-3.5" />
+                            Menu do navegador → Instalar app
+                          </div>
+                        </>
+                      )}
+                    </div>
+                    <div className="flex items-center justify-end gap-2">
+                      <button
+                        onClick={handleRemindLater}
+                        disabled={isSavingPreference}
+                        className="px-3 py-1.5 rounded-full text-[11px] font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 disabled:opacity-60"
+                      >
+                        Lembrar depois
+                      </button>
+                      <button
+                        onClick={handleHideForever}
+                        disabled={isSavingPreference}
+                        className="px-3 py-1.5 rounded-full text-[11px] font-semibold text-slate-500 hover:text-slate-700"
+                      >
+                        Não mostrar
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-        </div>
-      </motion.div>
-    </AnimatePresence>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
   );
 }
