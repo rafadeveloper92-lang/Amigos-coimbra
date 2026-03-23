@@ -54,7 +54,7 @@ export default function Feed({ onNavigate, onViewProfile, onSendMessage }: FeedP
   return (
     <main className="flex-1 w-full p-4 pb-24 lg:pb-4 lg:p-0">
       <AdCarousel />
-      <StoriesBar />
+      <StoriesBar onSendMessage={onSendMessage} />
       
       {/* Posts */}
       <div className="space-y-4">

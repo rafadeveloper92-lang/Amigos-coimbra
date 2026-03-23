@@ -1302,14 +1302,15 @@ export const dataService = {
   },
 
   async sendDirectMessage(senderId: string, receiverId: string, content: string) {
-    console.log('dataService.sendDirectMessage:', senderId, receiverId, content);
+    const trimmed = content.trim();
+    if (!trimmed) return null;
     try {
       const { data, error } = await supabase
         .from('direct_messages')
         .insert([{
           sender_id: senderId,
           receiver_id: receiverId,
-          content
+          content: trimmed
         }])
         .select()
         .single();
@@ -1319,10 +1320,14 @@ export const dataService = {
         throw error;
       }
 
-      // Create notification for the receiver
-      const senderProfile = await this.getUserProfile(senderId);
-      const senderName = senderProfile ? `${senderProfile.first_name} ${senderProfile.last_name}` : 'Alguém';
-      await this.createNotification(receiverId, 'message', `${senderName} enviou uma nova mensagem privada!`, { from_id: senderId, link_to: 'messages' });
+      // Notificação não pode quebrar o envio da mensagem.
+      try {
+        const senderProfile = await this.getUserProfile(senderId);
+        const senderName = senderProfile ? `${senderProfile.first_name} ${senderProfile.last_name}` : 'Alguém';
+        await this.createNotification(receiverId, 'message', `${senderName} enviou uma nova mensagem privada!`, { from_id: senderId, link_to: 'messages' });
+      } catch (notifyError) {
+        console.warn('Falha ao criar notificação de DM:', notifyError);
+      }
 
       return data;
     } catch (error: any) {

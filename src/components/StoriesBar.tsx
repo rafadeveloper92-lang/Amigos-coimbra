@@ -7,7 +7,11 @@ import { supabase } from '../services/supabaseClient';
 import StoryViewer from './StoryViewer';
 import StoryComposer, { StoryComposerPayload } from './StoryComposer';
 
-export default function StoriesBar() {
+interface StoriesBarProps {
+  onSendMessage?: (userId: string) => void;
+}
+
+export default function StoriesBar({ onSendMessage }: StoriesBarProps) {
   const [stories, setStories] = useState<Story[]>([]);
   const [currentUser, setCurrentUser] = useState<Profile | null>(null);
   const [isViewerOpen, setIsViewerOpen] = useState(false);
@@ -177,8 +181,10 @@ export default function StoriesBar() {
   });
 
   const openViewer = (userStories: Story[]) => {
+    const ownerId = userStories[0]?.user_id;
+    const isOwnStories = !!currentUser && ownerId === currentUser.id;
     setSelectedUserStories(userStories);
-    setViewerInitialIndex(Math.max(0, userStories.length - 1));
+    setViewerInitialIndex(isOwnStories ? Math.max(0, userStories.length - 1) : 0);
     setIsViewerOpen(true);
   };
 
@@ -292,6 +298,7 @@ export default function StoriesBar() {
           <StoryViewer 
             stories={selectedUserStories} 
             initialIndex={viewerInitialIndex}
+            onOpenMessages={onSendMessage}
             onClose={() => setIsViewerOpen(false)} 
           />
         )}

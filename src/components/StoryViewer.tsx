@@ -11,6 +11,7 @@ interface StoryViewerProps {
   stories: Story[];
   initialIndex?: number;
   onClose: () => void;
+  onOpenMessages?: (userId: string) => void;
 }
 
 interface FavoriteMusicTrack {
@@ -41,7 +42,7 @@ const toDeterministicTrackId = (title: string, artist?: string) => {
 
 const STORY_WATERMARK = 'Amigos Coimbra';
 
-export default function StoryViewer({ stories, initialIndex = 0, onClose }: StoryViewerProps) {
+export default function StoryViewer({ stories, initialIndex = 0, onClose, onOpenMessages }: StoryViewerProps) {
   const { user: authUser } = useAuth();
   const [localStories, setLocalStories] = useState<Story[]>(stories);
   const [currentIndex, setCurrentIndex] = useState(
@@ -67,6 +68,7 @@ export default function StoryViewer({ stories, initialIndex = 0, onClose }: Stor
   const [messageInput, setMessageInput] = useState('');
   const [favoriteTracks, setFavoriteTracks] = useState<FavoriteMusicTrack[]>([]);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [actionInfo, setActionInfo] = useState<string | null>(null);
 
   const currentStory = localStories[currentIndex];
   const user = currentStory?.profile;
@@ -79,6 +81,7 @@ export default function StoryViewer({ stories, initialIndex = 0, onClose }: Stor
     setShowMenu(false);
     setDeleteError(null);
     setActionError(null);
+    setActionInfo(null);
   }, [stories, initialIndex]);
 
   useEffect(() => {
@@ -137,6 +140,7 @@ export default function StoryViewer({ stories, initialIndex = 0, onClose }: Stor
     setCommentInput('');
     setMessageInput('');
     setActionError(null);
+    setActionInfo(null);
   }, [currentStory?.id]);
 
   useEffect(() => {
@@ -367,8 +371,25 @@ export default function StoryViewer({ stories, initialIndex = 0, onClose }: Stor
   const handleSendDirectMessage = async () => {
     const content = messageInput.trim();
     if (!content || !authUser?.id || !currentStory.user_id || currentStory.user_id === authUser.id) return;
-    await dataService.sendDirectMessage(authUser.id, currentStory.user_id, content);
-    setMessageInput('');
+    setActionError(null);
+    setActionInfo(null);
+    try {
+      const storyContextMessage = `📷 Respondeu ao seu story: ${content}`;
+      const sent = await dataService.sendDirectMessage(authUser.id, currentStory.user_id, storyContextMessage);
+      if (!sent) {
+        setActionError('Não foi possível enviar a mensagem para o PV.');
+        return;
+      }
+      setMessageInput('');
+      setActionInfo('Mensagem enviada no PV.');
+      if (onOpenMessages) {
+        onOpenMessages(currentStory.user_id);
+        onClose();
+      }
+    } catch (error) {
+      console.error('Erro ao enviar DM pelo story:', error);
+      setActionError('Não foi possível enviar a mensagem para o PV.');
+    }
   };
 
   const handleSaveFavoriteMusic = async () => {
@@ -580,6 +601,14 @@ export default function StoryViewer({ stories, initialIndex = 0, onClose }: Stor
           <div className="absolute top-36 left-4 right-4 z-20">
             <div className="bg-red-600/90 text-white text-xs font-semibold px-3 py-2 rounded-lg">
               {actionError}
+            </div>
+          </div>
+        )}
+
+        {actionInfo && (
+          <div className="absolute top-36 left-4 right-4 z-20">
+            <div className="bg-emerald-600/90 text-white text-xs font-semibold px-3 py-2 rounded-lg">
+              {actionInfo}
             </div>
           </div>
         )}
