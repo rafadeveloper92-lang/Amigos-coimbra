@@ -3,6 +3,7 @@ import { X, ChevronLeft, ChevronRight, Plus, Trash2, MoreVertical } from 'lucide
 import { dataService } from '../services/dataService';
 import { HighlightItem } from '../types';
 import { supabase } from '../services/supabaseClient';
+import { useAuth } from '../contexts/AuthContext';
 
 interface Props {
   highlightId: string;
@@ -12,6 +13,7 @@ interface Props {
 
 export default function HighlightViewer({ highlightId, isOwnProfile, onClose }: Props) {
   const HIGHLIGHT_DURATION_MS = 5000;
+  const { user } = useAuth();
   const [items, setItems] = useState<HighlightItem[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [progress, setProgress] = useState(0);
@@ -20,6 +22,7 @@ export default function HighlightViewer({ highlightId, isOwnProfile, onClose }: 
   const [error, setError] = useState<string | null>(null);
   const [showMenu, setShowMenu] = useState(false);
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
+  const [canManage, setCanManage] = useState(isOwnProfile);
   const progressTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const prevItem = useCallback(() => {
@@ -81,6 +84,30 @@ export default function HighlightViewer({ highlightId, isOwnProfile, onClose }: 
     };
     fetchItems();
   }, [highlightId]);
+
+  useEffect(() => {
+    setCanManage(isOwnProfile);
+  }, [isOwnProfile]);
+
+  useEffect(() => {
+    const resolveOwnerPermission = async () => {
+      if (!user?.id || isOwnProfile) return;
+      try {
+        const { data, error: ownerError } = await supabase
+          .from('highlights')
+          .select('user_id')
+          .eq('id', highlightId)
+          .maybeSingle();
+        if (ownerError) return;
+        if (data?.user_id === user.id) {
+          setCanManage(true);
+        }
+      } catch {
+        // keep original permission if owner lookup fails
+      }
+    };
+    resolveOwnerPermission();
+  }, [highlightId, isOwnProfile, user?.id]);
 
   const handleAddPhotos = async (e: React.ChangeEvent<HTMLInputElement>) => {
     console.log('handleAddPhotos chamado');
@@ -158,9 +185,9 @@ export default function HighlightViewer({ highlightId, isOwnProfile, onClose }: 
   return (
     <div className="fixed inset-0 z-[200] bg-black flex items-center justify-center">
       {/* Instagram-style Progress Bars */}
-      <div className="absolute top-0 left-0 w-full p-2 flex gap-1 z-20">
+      <div className="absolute top-3 left-0 w-full px-3 flex gap-1 z-20">
         {items.map((_, index) => (
-          <div key={index} className="flex-1 h-1 bg-gray-700/50 rounded-full overflow-hidden">
+          <div key={index} className="flex-1 h-1.5 bg-white/25 rounded-full overflow-hidden">
             <div
               className="h-full bg-white"
               style={{
@@ -216,7 +243,7 @@ export default function HighlightViewer({ highlightId, isOwnProfile, onClose }: 
             />
           </div>
 
-          {isOwnProfile && (
+          {canManage && (
             <div className="absolute top-8 left-4 z-[1000]">
               <button 
                 onClick={(e) => { e.stopPropagation(); setShowMenu(!showMenu); }}
@@ -292,7 +319,7 @@ export default function HighlightViewer({ highlightId, isOwnProfile, onClose }: 
         </div>
       )}
 
-      {isOwnProfile && (
+      {canManage && (
         <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[1001]">
           <label 
             className="bg-white/95 text-nexus-blue px-4 py-2 rounded-full font-bold cursor-pointer flex items-center gap-2 shadow-lg"

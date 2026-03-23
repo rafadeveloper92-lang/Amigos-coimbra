@@ -48,7 +48,7 @@ export default function UserProfileView({ onEdit, userId, onSendMessage }: UserP
   const [newHighlight, setNewHighlight] = useState({ title: '', cover_url: '' });
   const [uploading, setUploading] = useState(false);
   const [savingHighlight, setSavingHighlight] = useState(false);
-  const [viewingHighlight, setViewingHighlight] = useState<string | null>(null);
+  const [viewingHighlight, setViewingHighlight] = useState<{ id: string; canManage: boolean } | null>(null);
   const [editingHighlight, setEditingHighlight] = useState<any>(null);
 
   const isOwnProfile = !userId || userId === currentUser?.id;
@@ -517,20 +517,22 @@ export default function UserProfileView({ onEdit, userId, onSendMessage }: UserP
                   <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Novo</span>
                 </div>
               )}
-              {highlights.map((highlight) => (
+              {highlights.map((highlight) => {
+                const canManageHighlight = isOwnProfile || highlight.user_id === currentUser?.id;
+                return (
                 <div 
                   key={highlight.id} 
                   className="flex flex-col items-center gap-2 min-w-[70px] cursor-pointer group"
                 >
                   <div 
                     className="w-16 h-16 rounded-full border-2 border-nexus-blue p-0.5 relative bg-white shadow-sm transition-transform group-hover:scale-105"
-                    onClick={() => setViewingHighlight(highlight.id)}
+                    onClick={() => setViewingHighlight({ id: highlight.id, canManage: canManageHighlight })}
                   >
                     <div className="w-full h-full rounded-full overflow-hidden border-2 border-white">
                       <img src={highlight.cover_url} alt={highlight.title} className="w-full h-full object-cover" />
                     </div>
                   </div>
-                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-600 truncate w-full text-center" onClick={() => setViewingHighlight(highlight.id)}>{highlight.title}</span>
+                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-600 truncate w-full text-center" onClick={() => setViewingHighlight({ id: highlight.id, canManage: canManageHighlight })}>{highlight.title}</span>
                   {isOwnProfile && (
                     <button 
                       onClick={() => setEditingHighlight(highlight)}
@@ -540,15 +542,15 @@ export default function UserProfileView({ onEdit, userId, onSendMessage }: UserP
                     </button>
                   )}
                 </div>
-              ))}
+              )})}
             </div>
 
             {/* Highlight Viewer */}
             {viewingHighlight && (
               <HighlightViewer 
-                highlightId={viewingHighlight} 
-                isOwnProfile={isOwnProfile}
-                onClose={() => setViewingHighlight(null)} 
+                highlightId={viewingHighlight.id} 
+                isOwnProfile={viewingHighlight.canManage}
+                onClose={() => setViewingHighlight(null)}
               />
             )}
 
