@@ -13,6 +13,16 @@ export default function MessagesListView({ onSelectConversation }: MessagesListV
   const [conversations, setConversations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
+  const ONLINE_THRESHOLD_MINUTES = 3;
+
+  const isRecentlyOnline = (updatedAt?: string) => {
+    if (!updatedAt) return false;
+    const lastSeen = new Date(updatedAt);
+    if (Number.isNaN(lastSeen.getTime())) return false;
+    const now = new Date();
+    const diffInMinutes = (now.getTime() - lastSeen.getTime()) / (1000 * 60);
+    return diffInMinutes >= 0 && diffInMinutes <= ONLINE_THRESHOLD_MINUTES;
+  };
 
   const fetchConversations = async () => {
     if (!user) return;
@@ -112,38 +122,43 @@ export default function MessagesListView({ onSelectConversation }: MessagesListV
               <p className="text-[10px] mt-1">Visite o perfil de um amigo para enviar uma mensagem.</p>
             </div>
           ) : (
-            conversations.map((conv) => (
-              <button
-                key={conv.otherId}
-                onClick={() => onSelectConversation(conv.otherId)}
-                className="w-full flex items-center gap-4 p-3 rounded-xl hover:bg-slate-50 transition-colors group text-left"
-              >
-                <div className="relative">
-                  <img 
-                    src={conv.profile?.avatar_url || `https://picsum.photos/seed/${conv.otherId}/100/100`} 
-                    alt={conv.profile?.first_name} 
-                    className="w-12 h-12 rounded-full object-cover border border-slate-100"
-                  />
-                  <div className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-white rounded-full"></div>
-                </div>
-                
-                <div className="flex-1 min-w-0">
-                  <div className="flex justify-between items-center mb-0.5">
-                    <h3 className="font-bold text-slate-900 truncate">
-                      {conv.profile ? `${conv.profile.first_name} ${conv.profile.last_name}` : 'Usuário'}
-                    </h3>
-                    <span className="text-[10px] text-slate-400">
-                      {new Date(conv.timestamp).toLocaleDateString()}
-                    </span>
+            conversations.map((conv) => {
+              const isOnline = isRecentlyOnline(conv.profile?.updated_at);
+              return (
+                <button
+                  key={conv.otherId}
+                  onClick={() => onSelectConversation(conv.otherId)}
+                  className="w-full flex items-center gap-4 p-3 rounded-xl hover:bg-slate-50 transition-colors group text-left"
+                >
+                  <div className="relative">
+                    <img 
+                      src={conv.profile?.avatar_url || `https://picsum.photos/seed/${conv.otherId}/100/100`} 
+                      alt={conv.profile?.first_name} 
+                      className="w-12 h-12 rounded-full object-cover border border-slate-100"
+                    />
+                    {isOnline && (
+                      <div className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-white rounded-full"></div>
+                    )}
                   </div>
-                  <p className="text-xs text-slate-500 truncate">
-                    {conv.isMe ? 'Você: ' : ''}{getConversationPreviewText(conv.lastMessage || '')}
-                  </p>
-                </div>
-                
-                <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-nexus-blue transition-colors" />
-              </button>
-            ))
+                  
+                  <div className="flex-1 min-w-0">
+                    <div className="flex justify-between items-center mb-0.5">
+                      <h3 className="font-bold text-slate-900 truncate">
+                        {conv.profile ? `${conv.profile.first_name} ${conv.profile.last_name}` : 'Usuário'}
+                      </h3>
+                      <span className="text-[10px] text-slate-400">
+                        {new Date(conv.timestamp).toLocaleDateString()}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500 truncate">
+                      {conv.isMe ? 'Você: ' : ''}{getConversationPreviewText(conv.lastMessage || '')}
+                    </p>
+                  </div>
+                  
+                  <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-nexus-blue transition-colors" />
+                </button>
+              );
+            })
           )}
         </div>
       </div>
