@@ -129,6 +129,12 @@ export interface Story {
   lyrics_text?: string;
   mention_tags?: string[];
   stickers?: StorySticker[];
+  mention_x?: number;
+  mention_y?: number;
+  mention_scale?: number;
+  music_x?: number;
+  music_y?: number;
+  music_scale?: number;
   media_scale?: number;
   media_x?: number;
   media_y?: number;

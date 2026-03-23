@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type FC, type ReactNode, type TouchEvent, type MouseEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import {
@@ -36,6 +36,17 @@ interface OverlayTransform {
   scale: number;
 }
 
+interface TransformableProps {
+  transform: OverlayTransform;
+  onChange: (next: OverlayTransform) => void;
+  centered?: boolean;
+  className?: string;
+  children: ReactNode;
+  minScale?: number;
+  maxScale?: number;
+  onSelect?: () => void;
+}
+
 export interface StoryComposerPayload {
   caption?: string;
   textColor?: string;
@@ -51,6 +62,12 @@ export interface StoryComposerPayload {
   captionX?: number;
   captionY?: number;
   captionScale?: number;
+  mentionX?: number;
+  mentionY?: number;
+  mentionScale?: number;
+  musicX?: number;
+  musicY?: number;
+  musicScale?: number;
   music?: {
     title: string;
     artist?: string;
@@ -86,6 +103,201 @@ const STICKER_POSITIONS = [
   { x: -120, y: 90 },
   { x: 120, y: 140 },
 ];
+const TOP_MUSIC_TERMS = ['top brasil', 'viral brasil', 'pop hits', 'sertanejo', 'forró hits'];
+
+const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+
+const distance = (a: Touch, b: Touch) => {
+  const dx = a.clientX - b.clientX;
+  const dy = a.clientY - b.clientY;
+  return Math.sqrt(dx * dx + dy * dy);
+};
+
+const midpoint = (a: Touch, b: Touch) => ({
+  x: (a.clientX + b.clientX) / 2,
+  y: (a.clientY + b.clientY) / 2,
+});
+
+const TransformableItem: FC<TransformableProps> = ({
+  transform,
+  onChange,
+  centered = true,
+  className = '',
+  children,
+  minScale = 0.5,
+  maxScale = 3,
+  onSelect,
+}) => {
+  const touchRef = useRef<{
+    mode: 'none' | 'drag' | 'pinch';
+    startX: number;
+    startY: number;
+    startDistance: number;
+    startMidX: number;
+    startMidY: number;
+    initial: OverlayTransform;
+  }>({
+    mode: 'none',
+    startX: 0,
+    startY: 0,
+    startDistance: 0,
+    startMidX: 0,
+    startMidY: 0,
+    initial: transform,
+  });
+
+  const mouseRef = useRef<{
+    active: boolean;
+    startX: number;
+    startY: number;
+    initial: OverlayTransform;
+  }>({
+    active: false,
+    startX: 0,
+    startY: 0,
+    initial: transform,
+  });
+
+  useEffect(() => {
+    const onMouseMove = (event: MouseEvent) => {
+      if (!mouseRef.current.active) return;
+      const dx = event.clientX - mouseRef.current.startX;
+      const dy = event.clientY - mouseRef.current.startY;
+      onChange({
+        ...mouseRef.current.initial,
+        x: mouseRef.current.initial.x + dx,
+        y: mouseRef.current.initial.y + dy,
+      });
+    };
+
+    const onMouseUp = () => {
+      mouseRef.current.active = false;
+    };
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+  }, [onChange]);
+
+  const handleTouchStart = (event: TouchEvent<HTMLDivElement>) => {
+    onSelect?.();
+    if (event.touches.length === 1) {
+      const touch = event.touches[0];
+      touchRef.current = {
+        mode: 'drag',
+        startX: touch.clientX,
+        startY: touch.clientY,
+        startDistance: 0,
+        startMidX: 0,
+        startMidY: 0,
+        initial: { ...transform },
+      };
+      return;
+    }
+
+    if (event.touches.length >= 2) {
+      const first = event.touches[0];
+      const second = event.touches[1];
+      const mid = midpoint(first, second);
+      touchRef.current = {
+        mode: 'pinch',
+        startX: 0,
+        startY: 0,
+        startDistance: distance(first, second),
+        startMidX: mid.x,
+        startMidY: mid.y,
+        initial: { ...transform },
+      };
+    }
+  };
+
+  const handleTouchMove = (event: TouchEvent<HTMLDivElement>) => {
+    if (touchRef.current.mode === 'none') return;
+    event.preventDefault();
+
+    if (touchRef.current.mode === 'drag' && event.touches.length === 1) {
+      const touch = event.touches[0];
+      const dx = touch.clientX - touchRef.current.startX;
+      const dy = touch.clientY - touchRef.current.startY;
+      onChange({
+        ...touchRef.current.initial,
+        x: touchRef.current.initial.x + dx,
+        y: touchRef.current.initial.y + dy,
+      });
+      return;
+    }
+
+    if (event.touches.length >= 2) {
+      const first = event.touches[0];
+      const second = event.touches[1];
+      const currentDistance = distance(first, second);
+      const currentMid = midpoint(first, second);
+      const ratio = touchRef.current.startDistance > 0
+        ? currentDistance / touchRef.current.startDistance
+        : 1;
+      const nextScale = clamp(touchRef.current.initial.scale * ratio, minScale, maxScale);
+      const dx = currentMid.x - touchRef.current.startMidX;
+      const dy = currentMid.y - touchRef.current.startMidY;
+      onChange({
+        ...touchRef.current.initial,
+        x: touchRef.current.initial.x + dx,
+        y: touchRef.current.initial.y + dy,
+        scale: nextScale,
+      });
+    }
+  };
+
+  const handleTouchEnd = (event: TouchEvent<HTMLDivElement>) => {
+    if (event.touches.length === 1) {
+      const touch = event.touches[0];
+      touchRef.current = {
+        mode: 'drag',
+        startX: touch.clientX,
+        startY: touch.clientY,
+        startDistance: 0,
+        startMidX: 0,
+        startMidY: 0,
+        initial: { ...transform },
+      };
+      return;
+    }
+    touchRef.current.mode = 'none';
+  };
+
+  const handleMouseDown = (event: MouseEvent<HTMLDivElement>) => {
+    onSelect?.();
+    mouseRef.current = {
+      active: true,
+      startX: event.clientX,
+      startY: event.clientY,
+      initial: { ...transform },
+    };
+  };
+
+  const baseClass = centered
+    ? `absolute left-1/2 top-1/2 ${className}`
+    : `absolute inset-0 ${className}`;
+
+  const cssTransform = centered
+    ? `translate(-50%, -50%) translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})`
+    : `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})`;
+
+  return (
+    <div
+      className={baseClass}
+      style={{ transform: cssTransform, transformOrigin: 'center center', touchAction: 'none' }}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+      onMouseDown={handleMouseDown}
+    >
+      {children}
+    </div>
+  );
+};
 
 export default function StoryComposer({
   isOpen,
@@ -109,12 +321,15 @@ export default function StoryComposer({
   const [selectedStickerId, setSelectedStickerId] = useState<string | null>(null);
   const [musicQuery, setMusicQuery] = useState('');
   const [musicResults, setMusicResults] = useState<MusicTrack[]>([]);
+  const [topTracks, setTopTracks] = useState<MusicTrack[]>([]);
   const [musicLoading, setMusicLoading] = useState(false);
   const [selectedMusic, setSelectedMusic] = useState<MusicTrack | null>(null);
   const [musicDisplayMode, setMusicDisplayMode] = useState<MusicDisplayMode>('album');
   const [lyricsText, setLyricsText] = useState('');
   const [mediaTransform, setMediaTransform] = useState<OverlayTransform>({ x: 0, y: 0, scale: 1 });
   const [captionTransform, setCaptionTransform] = useState<OverlayTransform>({ x: 0, y: 0, scale: 1 });
+  const [mentionTransform, setMentionTransform] = useState<OverlayTransform>({ x: 0, y: -220, scale: 1 });
+  const [musicTransform, setMusicTransform] = useState<OverlayTransform>({ x: 0, y: -260, scale: 1 });
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [playingTrackId, setPlayingTrackId] = useState<number | null>(null);
 
@@ -132,11 +347,14 @@ export default function StoryComposer({
     setSelectedStickerId(null);
     setMusicQuery('');
     setMusicResults([]);
+    setTopTracks([]);
     setSelectedMusic(null);
     setMusicDisplayMode('album');
     setLyricsText('');
     setMediaTransform({ x: 0, y: 0, scale: 1 });
     setCaptionTransform({ x: 0, y: 0, scale: 1 });
+    setMentionTransform({ x: 0, y: -220, scale: 1 });
+    setMusicTransform({ x: 0, y: -260, scale: 1 });
 
     if (audioRef.current) {
       audioRef.current.pause();
@@ -144,6 +362,14 @@ export default function StoryComposer({
     }
     setPlayingTrackId(null);
   }, [isOpen, file]);
+
+  useEffect(() => {
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!isOpen || panel !== 'mentions') return;
@@ -175,11 +401,50 @@ export default function StoryComposer({
     return () => clearTimeout(timeout);
   }, [isOpen, panel, mentionQuery, mentionTags]);
 
+  const fetchTopTracks = async () => {
+    setMusicLoading(true);
+    try {
+      const responses = await Promise.all(
+        TOP_MUSIC_TERMS.map((term) =>
+          fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(term)}&entity=song&limit=8`)
+        )
+      );
+
+      const jsons = await Promise.all(
+        responses.map(async (res) => (res.ok ? res.json() : { results: [] }))
+      );
+
+      const merged = jsons.flatMap((payload: any) =>
+        (payload?.results || []).map((item: any) => ({
+          trackId: item.trackId,
+          trackName: item.trackName,
+          artistName: item.artistName,
+          artworkUrl100: item.artworkUrl100,
+          previewUrl: item.previewUrl,
+        }))
+      );
+
+      const unique = new Map<number, MusicTrack>();
+      merged.forEach((track: MusicTrack) => {
+        if (!unique.has(track.trackId)) unique.set(track.trackId, track);
+      });
+      setTopTracks(Array.from(unique.values()).slice(0, 20));
+    } catch {
+      setTopTracks([]);
+    } finally {
+      setMusicLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (!isOpen || panel !== 'music') return;
     const query = musicQuery.trim();
+
     if (query.length < 2) {
       setMusicResults([]);
+      if (topTracks.length === 0) {
+        fetchTopTracks();
+      }
       return;
     }
 
@@ -187,7 +452,7 @@ export default function StoryComposer({
       setMusicLoading(true);
       try {
         const response = await fetch(
-          `https://itunes.apple.com/search?term=${encodeURIComponent(query)}&entity=song&limit=12`
+          `https://itunes.apple.com/search?term=${encodeURIComponent(query)}&entity=song&limit=20`
         );
         if (!response.ok) {
           setMusicResults([]);
@@ -210,7 +475,7 @@ export default function StoryComposer({
     }, 350);
 
     return () => clearTimeout(timeout);
-  }, [isOpen, panel, musicQuery]);
+  }, [isOpen, panel, musicQuery, topTracks.length]);
 
   useEffect(() => {
     if (!selectedMusic) return;
@@ -240,6 +505,13 @@ export default function StoryComposer({
     }
   };
 
+  const handleSelectTrack = async (track: MusicTrack) => {
+    setSelectedMusic(track);
+    if (track.previewUrl) {
+      await toggleTrackPreview(track);
+    }
+  };
+
   const handleAddMention = (username: string) => {
     const normalized = username.replace('@', '').trim();
     if (!normalized || mentionTags.includes(normalized)) return;
@@ -261,14 +533,8 @@ export default function StoryComposer({
     setSelectedStickerId(sticker.id);
   };
 
-  const updateSelectedStickerScale = (scale: number) => {
-    if (!selectedStickerId) return;
-    setStickers((prev) =>
-      prev.map((sticker) => (sticker.id === selectedStickerId ? { ...sticker, scale } : sticker))
-    );
-  };
-
   const selectedSticker = stickers.find((sticker) => sticker.id === selectedStickerId);
+  const tracksToDisplay = musicQuery.trim().length >= 2 ? musicResults : topTracks;
 
   const handlePublish = async () => {
     if (!file) return;
@@ -287,6 +553,12 @@ export default function StoryComposer({
       captionX: captionTransform.x,
       captionY: captionTransform.y,
       captionScale: captionTransform.scale,
+      mentionX: mentionTransform.x,
+      mentionY: mentionTransform.y,
+      mentionScale: mentionTransform.scale,
+      musicX: musicTransform.x,
+      musicY: musicTransform.y,
+      musicScale: musicTransform.scale,
       music: selectedMusic
         ? {
             title: selectedMusic.trackName,
@@ -298,6 +570,15 @@ export default function StoryComposer({
     });
   };
 
+  const handleClose = () => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.src = '';
+    }
+    setPlayingTrackId(null);
+    onClose();
+  };
+
   if (!isOpen) return null;
 
   const composerContent = (
@@ -307,25 +588,16 @@ export default function StoryComposer({
       exit={{ opacity: 0 }}
       className="fixed inset-0 z-[10000] bg-black"
     >
-      <audio
-        ref={audioRef}
-        onEnded={() => setPlayingTrackId(null)}
-        onPause={() => setPlayingTrackId((current) => (audioRef.current?.ended ? null : current))}
-      />
+      <audio ref={audioRef} onEnded={() => setPlayingTrackId(null)} />
+
       <div className="relative w-full h-full overflow-hidden bg-black select-none">
-        {/* Media layer with drag + zoom */}
-        <motion.div
-          drag
-          dragMomentum={false}
-          className="absolute inset-0 cursor-grab active:cursor-grabbing touch-none"
-          style={{ x: mediaTransform.x, y: mediaTransform.y, scale: mediaTransform.scale }}
-          onDragEnd={(_, info) => {
-            setMediaTransform((prev) => ({
-              ...prev,
-              x: prev.x + info.offset.x,
-              y: prev.y + info.offset.y,
-            }));
-          }}
+        <TransformableItem
+          centered={false}
+          transform={mediaTransform}
+          onChange={setMediaTransform}
+          className="touch-none"
+          minScale={1}
+          maxScale={3}
         >
           {previewUrl ? (
             file?.type.startsWith('video') ? (
@@ -338,26 +610,39 @@ export default function StoryComposer({
               Selecione uma foto ou vídeo
             </div>
           )}
-        </motion.div>
+        </TransformableItem>
 
         <div className="absolute inset-0 bg-gradient-to-b from-black/45 via-transparent to-black/45 pointer-events-none" />
 
-        {/* Music overlay preview */}
         {selectedMusic && musicDisplayMode === 'album' && (
-          <div className="absolute top-24 left-4 z-20 bg-black/55 text-white rounded-full px-3 py-1.5 text-xs font-semibold flex items-center gap-2">
-            {selectedMusic.artworkUrl100 ? (
-              <img src={selectedMusic.artworkUrl100} alt={selectedMusic.trackName} className="w-5 h-5 rounded-full object-cover" />
-            ) : (
-              <Music2 className="w-3.5 h-3.5" />
-            )}
-            <span className="truncate max-w-[220px]">
-              {selectedMusic.trackName} {selectedMusic.artistName ? `- ${selectedMusic.artistName}` : ''}
-            </span>
-          </div>
+          <TransformableItem
+            transform={musicTransform}
+            onChange={setMusicTransform}
+            className="z-20"
+            minScale={0.7}
+            maxScale={2.4}
+          >
+            <div className="bg-black/55 text-white rounded-full px-3 py-1.5 text-xs font-semibold flex items-center gap-2">
+              {selectedMusic.artworkUrl100 ? (
+                <img src={selectedMusic.artworkUrl100} alt={selectedMusic.trackName} className="w-5 h-5 rounded-full object-cover" />
+              ) : (
+                <Music2 className="w-3.5 h-3.5" />
+              )}
+              <span className="truncate max-w-[220px]">
+                {selectedMusic.trackName} {selectedMusic.artistName ? `- ${selectedMusic.artistName}` : ''}
+              </span>
+            </div>
+          </TransformableItem>
         )}
 
         {selectedMusic && musicDisplayMode === 'lyrics' && (
-          <div className="absolute left-4 right-4 bottom-28 z-20 overflow-hidden pointer-events-none">
+          <TransformableItem
+            transform={musicTransform}
+            onChange={setMusicTransform}
+            className="z-20 w-[80vw] overflow-hidden"
+            minScale={0.7}
+            maxScale={2.4}
+          >
             <motion.div
               className="text-white text-base font-bold whitespace-nowrap drop-shadow-[0_2px_8px_rgba(0,0,0,0.85)]"
               initial={{ x: '100%' }}
@@ -366,7 +651,7 @@ export default function StoryComposer({
             >
               {lyricsText || `${selectedMusic.trackName} - ${selectedMusic.artistName}`}
             </motion.div>
-          </div>
+          </TransformableItem>
         )}
 
         {locationName && (
@@ -377,56 +662,52 @@ export default function StoryComposer({
         )}
 
         {mentionTags.length > 0 && (
-          <div className="absolute top-48 left-4 right-4 z-20 flex flex-wrap gap-2">
-            {mentionTags.map((tag) => (
-              <span key={tag} className="bg-black/55 text-white text-xs font-semibold rounded-full px-2.5 py-1">
-                @{tag}
-              </span>
-            ))}
-          </div>
+          <TransformableItem
+            transform={mentionTransform}
+            onChange={setMentionTransform}
+            className="z-20"
+            minScale={0.7}
+            maxScale={2.4}
+          >
+            <div className="flex flex-wrap gap-2 justify-center max-w-[80vw]">
+              {mentionTags.map((tag) => (
+                <span key={tag} className="bg-black/55 text-white text-xs font-semibold rounded-full px-2.5 py-1">
+                  @{tag}
+                </span>
+              ))}
+            </div>
+          </TransformableItem>
         )}
 
         {stickers.map((sticker) => (
-          <motion.div
+          <TransformableItem
             key={sticker.id}
-            drag
-            dragMomentum={false}
-            className={`absolute left-1/2 top-1/2 z-20 text-3xl md:text-4xl drop-shadow-[0_2px_8px_rgba(0,0,0,0.75)] ${
-              selectedStickerId === sticker.id ? 'ring-2 ring-white/70 rounded-lg' : ''
-            }`}
-            style={{ x: sticker.x, y: sticker.y, scale: sticker.scale || 1 }}
-            onPointerDown={() => setSelectedStickerId(sticker.id)}
-            onDragEnd={(_, info) => {
+            transform={{ x: sticker.x, y: sticker.y, scale: sticker.scale || 1 }}
+            onChange={(next) =>
               setStickers((prev) =>
                 prev.map((item) =>
-                  item.id === sticker.id
-                    ? {
-                        ...item,
-                        x: item.x + info.offset.x,
-                        y: item.y + info.offset.y,
-                      }
-                    : item
+                  item.id === sticker.id ? { ...item, x: next.x, y: next.y, scale: next.scale } : item
                 )
-              );
-            }}
+              )
+            }
+            className={`z-20 text-3xl md:text-4xl drop-shadow-[0_2px_8px_rgba(0,0,0,0.75)] ${
+              selectedStickerId === sticker.id ? 'ring-2 ring-white/70 rounded-lg' : ''
+            }`}
+            minScale={0.5}
+            maxScale={3}
+            onSelect={() => setSelectedStickerId(sticker.id)}
           >
             {sticker.label}
-          </motion.div>
+          </TransformableItem>
         ))}
 
         {caption && (
-          <motion.div
-            drag
-            dragMomentum={false}
-            className="absolute left-1/2 top-1/2 z-20 text-center px-4"
-            style={{ x: captionTransform.x, y: captionTransform.y, scale: captionTransform.scale }}
-            onDragEnd={(_, info) => {
-              setCaptionTransform((prev) => ({
-                ...prev,
-                x: prev.x + info.offset.x,
-                y: prev.y + info.offset.y,
-              }));
-            }}
+          <TransformableItem
+            transform={captionTransform}
+            onChange={setCaptionTransform}
+            className="z-20 text-center px-4"
+            minScale={0.6}
+            maxScale={3}
           >
             <p
               className="text-3xl md:text-4xl font-black break-words drop-shadow-[0_2px_10px_rgba(0,0,0,0.85)]"
@@ -434,13 +715,13 @@ export default function StoryComposer({
             >
               {caption}
             </p>
-          </motion.div>
+          </TransformableItem>
         )}
 
         {/* Top actions */}
         <div className="absolute top-4 left-4 right-4 z-30 flex items-center justify-between">
           <button
-            onClick={onClose}
+            onClick={handleClose}
             disabled={uploading}
             className="w-11 h-11 rounded-full bg-black/45 text-white flex items-center justify-center"
           >
@@ -461,7 +742,7 @@ export default function StoryComposer({
           <button
             onClick={() => setPanel((prev) => (prev === 'media' ? 'none' : 'media'))}
             className="w-11 h-11 rounded-full bg-black/45 text-white flex items-center justify-center"
-            title="Mover e zoom da mídia"
+            title="Mover/zoom da mídia"
           >
             <Move className="w-5 h-5" />
           </button>
@@ -515,7 +796,6 @@ export default function StoryComposer({
           </div>
         )}
 
-        {/* Bottom sheets */}
         <AnimatePresence>
           {panel !== 'none' && (
             <motion.div
@@ -527,23 +807,14 @@ export default function StoryComposer({
               {panel === 'media' && (
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <h4 className="text-white text-sm font-black uppercase tracking-wider">Mídia (arrastar e zoom)</h4>
+                    <h4 className="text-white text-sm font-black uppercase tracking-wider">Mídia</h4>
                     <button onClick={() => setPanel('none')} className="text-white/70">
                       <X className="w-4 h-4" />
                     </button>
                   </div>
-                  <p className="text-white/70 text-xs">Arraste a foto/vídeo na tela e ajuste o zoom:</p>
-                  <input
-                    type="range"
-                    min={1}
-                    max={2.5}
-                    step={0.01}
-                    value={mediaTransform.scale}
-                    onChange={(e) =>
-                      setMediaTransform((prev) => ({ ...prev, scale: Number(e.target.value) }))
-                    }
-                    className="w-full"
-                  />
+                  <p className="text-white/70 text-xs">
+                    Use os dedos na tela para arrastar e pinçar (zoom) a foto/vídeo.
+                  </p>
                   <button
                     onClick={() => setMediaTransform({ x: 0, y: 0, scale: 1 })}
                     className="px-3 py-1.5 rounded-full bg-white/10 text-white text-xs font-semibold"
@@ -592,20 +863,7 @@ export default function StoryComposer({
                       </button>
                     ))}
                   </div>
-                  <div>
-                    <label className="text-white/70 text-xs">Tamanho do texto</label>
-                    <input
-                      type="range"
-                      min={0.7}
-                      max={2.2}
-                      step={0.01}
-                      value={captionTransform.scale}
-                      onChange={(e) =>
-                        setCaptionTransform((prev) => ({ ...prev, scale: Number(e.target.value) }))
-                      }
-                      className="w-full"
-                    />
-                  </div>
+                  <p className="text-white/70 text-xs">Arraste/pinçe o texto diretamente na tela.</p>
                 </div>
               )}
 
@@ -628,28 +886,17 @@ export default function StoryComposer({
                       </button>
                     ))}
                   </div>
+                  <p className="text-white/70 text-xs">Arraste/pinçe os stickers na tela para ajustar.</p>
                   {selectedSticker && (
-                    <div className="space-y-2">
-                      <label className="text-white/70 text-xs">Tamanho do sticker selecionado</label>
-                      <input
-                        type="range"
-                        min={0.6}
-                        max={2.4}
-                        step={0.01}
-                        value={selectedSticker.scale || 1}
-                        onChange={(e) => updateSelectedStickerScale(Number(e.target.value))}
-                        className="w-full"
-                      />
-                      <button
-                        onClick={() => {
-                          setStickers((prev) => prev.filter((item) => item.id !== selectedSticker.id));
-                          setSelectedStickerId(null);
-                        }}
-                        className="px-3 py-1.5 rounded-full bg-red-500/20 text-red-200 text-xs font-semibold"
-                      >
-                        Remover sticker selecionado
-                      </button>
-                    </div>
+                    <button
+                      onClick={() => {
+                        setStickers((prev) => prev.filter((item) => item.id !== selectedSticker.id));
+                        setSelectedStickerId(null);
+                      }}
+                      className="px-3 py-1.5 rounded-full bg-red-500/20 text-red-200 text-xs font-semibold"
+                    >
+                      Remover sticker selecionado
+                    </button>
                   )}
                 </div>
               )}
@@ -702,6 +949,7 @@ export default function StoryComposer({
                       ))}
                     </div>
                   )}
+                  <p className="text-white/70 text-xs">Arraste/pinçe as menções na tela.</p>
                 </div>
               )}
 
@@ -752,9 +1000,16 @@ export default function StoryComposer({
                     />
                   )}
 
+                  <div className="flex items-center justify-between">
+                    <p className="text-white/70 text-xs">
+                      {musicQuery.trim().length >= 2 ? 'Resultados da pesquisa' : 'Top indicadas do momento'}
+                    </p>
+                    <p className="text-white/60 text-[11px]">toque em ▶ para preview</p>
+                  </div>
+
                   <div className="max-h-44 overflow-y-auto space-y-1">
                     {musicLoading && <p className="text-white/70 text-xs">A pesquisar...</p>}
-                    {musicResults.map((track) => (
+                    {tracksToDisplay.map((track) => (
                       <div
                         key={track.trackId}
                         className={`w-full flex items-center gap-3 rounded-lg p-2 ${
@@ -775,7 +1030,7 @@ export default function StoryComposer({
                           </div>
                         )}
                         <button
-                          onClick={() => setSelectedMusic(track)}
+                          onClick={() => handleSelectTrack(track)}
                           className="min-w-0 flex-1 text-left"
                         >
                           <p className="text-white text-xs font-semibold truncate">{track.trackName}</p>
@@ -785,6 +1040,8 @@ export default function StoryComposer({
                       </div>
                     ))}
                   </div>
+
+                  <p className="text-white/70 text-xs">Arraste/pinçe o bloco de música na tela.</p>
                 </div>
               )}
 

@@ -7,7 +7,7 @@ export const dataService = {
       .from('stories')
       .select('*')
       .gt('expires_at', new Date().toISOString())
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: true });
 
     if (error) {
       console.error('Error fetching stories:', error);
@@ -63,6 +63,12 @@ export const dataService = {
       lyrics_text: story.lyrics_text || null,
       mention_tags: story.mention_tags || null,
       stickers: story.stickers || null,
+      mention_x: story.mention_x || null,
+      mention_y: story.mention_y || null,
+      mention_scale: story.mention_scale || null,
+      music_x: story.music_x || null,
+      music_y: story.music_y || null,
+      music_scale: story.music_scale || null,
       media_scale: story.media_scale || null,
       media_x: story.media_x || null,
       media_y: story.media_y || null,

@@ -4,6 +4,8 @@ import { X, ChevronLeft, ChevronRight, MoreVertical, Trash2, MapPin, Music, Play
 import { Story } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { dataService } from '../services/dataService';
+import { formatDistanceToNow } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
 interface StoryViewerProps {
   stories: Story[];
@@ -15,7 +17,7 @@ export default function StoryViewer({ stories, onClose }: StoryViewerProps) {
   const [localStories, setLocalStories] = useState<Story[]>(stories);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [progress, setProgress] = useState(0);
-  const duration = 5000; // 5 seconds per story
+  const duration = 25000; // 25 seconds por story
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const startTimeRef = useRef<number>(0);
   const pausedTimeRef = useRef<number>(0);
@@ -25,6 +27,7 @@ export default function StoryViewer({ stories, onClose }: StoryViewerProps) {
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [isMusicPlaying, setIsMusicPlaying] = useState(false);
+  const [nowTick, setNowTick] = useState(Date.now());
 
   const currentStory = localStories[currentIndex];
   const user = currentStory?.profile;
@@ -45,7 +48,16 @@ export default function StoryViewer({ stories, onClose }: StoryViewerProps) {
   }, [localStories.length, onClose]);
 
   useEffect(() => {
-    if (!currentStory?.music_preview_url || !audioRef.current) {
+    const interval = setInterval(() => setNowTick(Date.now()), 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    if (!audioRef.current) return;
+
+    if (!currentStory?.music_preview_url) {
+      audioRef.current.pause();
+      audioRef.current.src = '';
       setIsMusicPlaying(false);
       return;
     }
@@ -59,6 +71,14 @@ export default function StoryViewer({ stories, onClose }: StoryViewerProps) {
       setIsMusicPlaying(false);
     });
   }, [currentStory?.id, currentStory?.music_preview_url]);
+
+  useEffect(() => {
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (localStories.length === 0) return;
@@ -88,6 +108,11 @@ export default function StoryViewer({ stories, onClose }: StoryViewerProps) {
 
   const nextStory = () => {
     setShowMenu(false);
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    }
+    setIsMusicPlaying(false);
     if (currentIndex < localStories.length - 1) {
       setCurrentIndex(prev => prev + 1);
       setProgress(0);
@@ -99,6 +124,11 @@ export default function StoryViewer({ stories, onClose }: StoryViewerProps) {
 
   const prevStory = () => {
     setShowMenu(false);
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    }
+    setIsMusicPlaying(false);
     if (currentIndex > 0) {
       setCurrentIndex(prev => prev - 1);
       setProgress(0);
@@ -146,6 +176,20 @@ export default function StoryViewer({ stories, onClose }: StoryViewerProps) {
   };
 
   if (!currentStory) return null;
+
+  const closeViewer = () => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    }
+    setIsMusicPlaying(false);
+    onClose();
+  };
+
+  const storyTimeAgo = currentStory.created_at
+    ? formatDistanceToNow(new Date(currentStory.created_at), { addSuffix: true, locale: ptBR })
+    : 'agora';
+  void nowTick;
 
   const toggleMusic = async () => {
     if (!audioRef.current || !currentStory.music_preview_url) return;
@@ -202,7 +246,7 @@ export default function StoryViewer({ stories, onClose }: StoryViewerProps) {
             </div>
             <div className="text-white">
               <p className="text-sm font-bold">{user?.username}</p>
-              <p className="text-[10px] opacity-70">Há 2 horas</p>
+              <p className="text-[10px] opacity-70">{storyTimeAgo}</p>
             </div>
           </div>
           <div className="flex items-center gap-2 relative">
@@ -229,7 +273,7 @@ export default function StoryViewer({ stories, onClose }: StoryViewerProps) {
               </>
             )}
             <button 
-              onClick={onClose}
+              onClick={closeViewer}
               className="p-2 text-white hover:bg-white/10 rounded-full transition-colors"
             >
               <X className="w-6 h-6" />
@@ -238,42 +282,52 @@ export default function StoryViewer({ stories, onClose }: StoryViewerProps) {
         </div>
 
         {/* Metadata */}
-        {(currentStory.location_name || currentStory.music_title) && (
-          <div className="absolute top-24 left-4 right-4 z-20 flex flex-wrap gap-2">
+        {currentStory.location_name && (
+          <div className="absolute top-24 left-4 right-4 z-20 flex flex-wrap gap-2 pointer-events-none">
             {currentStory.location_name && (
               <div className="px-3 py-1 rounded-full bg-black/50 text-white text-xs font-semibold flex items-center gap-1">
                 <MapPin className="w-3.5 h-3.5" />
                 {currentStory.location_name}
               </div>
             )}
-            {currentStory.music_title && currentStory.music_display_mode !== 'lyrics' && (
-              <button
-                onClick={toggleMusic}
-                className="px-3 py-1 rounded-full bg-black/50 text-white text-xs font-semibold flex items-center gap-1 max-w-[280px]"
-              >
-                {currentStory.music_cover_url ? (
-                  <img
-                    src={currentStory.music_cover_url}
-                    alt={currentStory.music_title}
-                    className="w-4 h-4 rounded-full object-cover"
-                  />
-                ) : (
-                  <Music className="w-3.5 h-3.5" />
-                )}
-                <span className="truncate">
-                  {currentStory.music_title}
-                  {currentStory.music_artist ? ` - ${currentStory.music_artist}` : ''}
-                </span>
-                {currentStory.music_preview_url && (
-                  <span className="ml-1">{isMusicPlaying ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}</span>
-                )}
-              </button>
-            )}
           </div>
         )}
 
+        {currentStory.music_title && currentStory.music_display_mode !== 'lyrics' && (
+          <button
+            onClick={toggleMusic}
+            className="absolute left-1/2 top-1/2 z-20 px-3 py-1 rounded-full bg-black/50 text-white text-xs font-semibold flex items-center gap-1 max-w-[280px]"
+            style={{
+              transform: `translate(-50%, -50%) translate(${currentStory.music_x || 0}px, ${currentStory.music_y || -260}px) scale(${currentStory.music_scale || 1})`,
+              transformOrigin: 'center center',
+            }}
+          >
+            {currentStory.music_cover_url ? (
+              <img
+                src={currentStory.music_cover_url}
+                alt={currentStory.music_title}
+                className="w-4 h-4 rounded-full object-cover"
+              />
+            ) : (
+              <Music className="w-3.5 h-3.5" />
+            )}
+            <span className="truncate">
+              {currentStory.music_title}
+              {currentStory.music_artist ? ` - ${currentStory.music_artist}` : ''}
+            </span>
+            {currentStory.music_preview_url && (
+              <span className="ml-1">{isMusicPlaying ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}</span>
+            )}
+          </button>
+        )}
+
         {currentStory.music_title && currentStory.music_display_mode === 'lyrics' && (
-          <div className="absolute left-4 right-4 bottom-28 z-20 overflow-hidden pointer-events-none">
+          <div
+            className="absolute left-1/2 top-1/2 z-20 overflow-hidden pointer-events-none w-[80vw]"
+            style={{
+              transform: `translate(-50%, -50%) translate(${currentStory.music_x || 0}px, ${currentStory.music_y || -260}px) scale(${currentStory.music_scale || 1})`,
+            }}
+          >
             <motion.div
               className="text-white text-base font-bold whitespace-nowrap drop-shadow-[0_2px_8px_rgba(0,0,0,0.85)]"
               initial={{ x: '100%' }}
@@ -286,7 +340,12 @@ export default function StoryViewer({ stories, onClose }: StoryViewerProps) {
         )}
 
         {currentStory.mention_tags && currentStory.mention_tags.length > 0 && (
-          <div className="absolute top-36 left-4 right-4 z-20 flex flex-wrap gap-2">
+          <div
+            className="absolute left-1/2 top-1/2 z-20 flex flex-wrap gap-2 justify-center pointer-events-none max-w-[80vw]"
+            style={{
+              transform: `translate(-50%, -50%) translate(${currentStory.mention_x || 0}px, ${currentStory.mention_y || -220}px) scale(${currentStory.mention_scale || 1})`,
+            }}
+          >
             {currentStory.mention_tags.map((mention) => (
               <span
                 key={mention}
@@ -370,7 +429,7 @@ export default function StoryViewer({ stories, onClose }: StoryViewerProps) {
           <div
             className="absolute left-1/2 top-1/2 z-20 text-center pointer-events-none px-4"
             style={{
-              transform: `translate(${currentStory.caption_x || 0}px, ${currentStory.caption_y || 0}px) scale(${currentStory.caption_scale || 1})`,
+              transform: `translate(-50%, -50%) translate(${currentStory.caption_x || 0}px, ${currentStory.caption_y || 0}px) scale(${currentStory.caption_scale || 1})`,
             }}
           >
             <p
