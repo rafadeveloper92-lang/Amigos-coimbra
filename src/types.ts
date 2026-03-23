@@ -28,6 +28,7 @@ export interface Post {
   time: string;
   content: string;
   image?: string;
+  media_type?: 'image' | 'video';
   likes: number;
   comments: number;
   reaction_counts?: Record<string, number>;

@@ -17,6 +17,7 @@ interface PostProps {
   time: string;
   content: string;
   image?: string;
+  media_type?: 'image' | 'video';
   likes: number;
   comments: number;
   reaction_counts?: Record<string, number>;
@@ -36,7 +37,7 @@ const REACTIONS = [
   { id: 'angry', emoji: '😡', label: 'Raiva', color: 'text-orange-600' },
   { id: 'wow', emoji: '😮', label: 'Uau', color: 'text-yellow-400' },
 ];
-export default function PostCard({ id, userId, author, author_avatar, group, time, content, image, likes: initialLikes, comments: initialComments, reaction_counts: initialReactionCounts, isNews, userReaction, autoOpenComments, onDelete, onViewProfile, onSendMessage }: PostProps) {
+export default function PostCard({ id, userId, author, author_avatar, group, time, content, image, media_type, likes: initialLikes, comments: initialComments, reaction_counts: initialReactionCounts, isNews, userReaction, autoOpenComments, onDelete, onViewProfile, onSendMessage }: PostProps) {
   const [likes, setLikes] = useState(initialLikes);
   const [reactionCounts, setReactionCounts] = useState<Record<string, number>>(initialReactionCounts || {});
   const [commentsCount, setCommentsCount] = useState(initialComments);
@@ -60,6 +61,12 @@ export default function PostCard({ id, userId, author, author_avatar, group, tim
     if (url) return url;
     return `https://api.dicebear.com/7.x/avataaars/svg?seed=${seed || 'default'}`;
   };
+
+  const isVideoMedia = !!image && (
+    media_type === 'video' ||
+    image.startsWith('data:video/') ||
+    /\.(mp4|webm|ogg|mov|m4v)(\?.*)?$/i.test(image)
+  );
 
   useEffect(() => {
     // Fetch initial comment count accurately
@@ -417,9 +424,23 @@ export default function PostCard({ id, userId, author, author_avatar, group, tim
       {image && (
         <div 
           className="w-full aspect-video overflow-hidden cursor-pointer relative"
-          onClick={() => setIsFullscreen(true)}
+          onClick={() => {
+            if (!isVideoMedia) {
+              setIsFullscreen(true);
+            }
+          }}
         >
-          <img src={image} alt="Post content" className="w-full h-full object-cover" />
+          {isVideoMedia ? (
+            <video
+              src={image}
+              controls
+              playsInline
+              preload="metadata"
+              className="w-full h-full object-cover bg-black"
+            />
+          ) : (
+            <img src={image} alt="Post content" className="w-full h-full object-cover" />
+          )}
           <div className="absolute right-3 bottom-3 z-10">
             <BrandWatermark compact />
           </div>
@@ -428,7 +449,7 @@ export default function PostCard({ id, userId, author, author_avatar, group, tim
 
       {/* Fullscreen Image Modal */}
       <AnimatePresence>
-        {isFullscreen && image && (
+        {isFullscreen && image && !isVideoMedia && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}

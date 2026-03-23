@@ -25,6 +25,23 @@ type FavoriteTrackPayload = {
   previewUrl?: string;
 };
 
+const VIDEO_URL_PATTERN = /\.(mp4|webm|ogg|mov|m4v)(\?.*)?$/i;
+
+const inferPostMediaType = (url?: string | null, explicitType?: string | null): 'image' | 'video' => {
+  if (explicitType === 'video' || explicitType === 'image') {
+    return explicitType;
+  }
+  if (!url) return 'image';
+  if (url.startsWith('data:video/') || VIDEO_URL_PATTERN.test(url)) {
+    return 'video';
+  }
+  return 'image';
+};
+
+const resolvePostMediaUrl = (post: any) => (
+  post.image || post.image_url || post.media_url || null
+);
+
 export const dataService = {
   async getStories(): Promise<Story[]> {
     const { data, error } = await supabase
@@ -412,6 +429,8 @@ export const dataService = {
       if (fallbackError) return [];
       return (fallbackData || []).map(post => ({
         ...post,
+        image: resolvePostMediaUrl(post) || undefined,
+        media_type: inferPostMediaType(resolvePostMediaUrl(post), (post as any).media_type),
         time: new Date(post.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' ago',
         is_news: post.is_news || false,
         userReaction: userReactions[post.id] || null
@@ -427,6 +446,8 @@ export const dataService = {
 
       return {
         ...post,
+        image: resolvePostMediaUrl(post) || undefined,
+        media_type: inferPostMediaType(resolvePostMediaUrl(post), (post as any).media_type),
         author: authorName || 'Usuário',
         author_avatar: profile?.avatar_url || null,
         time: new Date(post.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' ago',
@@ -480,6 +501,8 @@ export const dataService = {
 
     return {
       ...data,
+      image: resolvePostMediaUrl(data) || undefined,
+      media_type: inferPostMediaType(resolvePostMediaUrl(data), (data as any).media_type),
       author: authorName || 'Usuário',
       author_avatar: profile?.avatar_url || null,
       time: new Date(data.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' ago',
@@ -601,6 +624,8 @@ export const dataService = {
 
       return {
         ...post,
+        image: resolvePostMediaUrl(post) || undefined,
+        media_type: inferPostMediaType(resolvePostMediaUrl(post), (post as any).media_type),
         author: authorName || 'Usuário',
         author_avatar: profile?.avatar_url || null,
         time: new Date(post.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' ago',
@@ -1360,19 +1385,28 @@ export const dataService = {
   },
 
   async createPost(post: Partial<Post>) {
-    
+    const payload = {
+      ...post,
+      media_type: post.media_type || undefined,
+    };
+
     const { data, error } = await supabase
       .from('posts')
-      .insert([post])
+      .insert([payload])
       .select();
 
     if (error) {
-      // Se o erro for coluna inexistente, tenta postar sem o user_id
-      if (error.message.includes('user_id') || error.code === 'PGRST204') {
-        const { user_id, ...postWithoutUserId } = post;
+      const isColumnOrSchemaError =
+        error.code === 'PGRST204' ||
+        error.message.toLowerCase().includes('column') ||
+        error.message.toLowerCase().includes('schema cache');
+
+      // Se o erro for coluna inexistente, tenta postar sem colunas opcionais.
+      if (error.message.includes('user_id') || isColumnOrSchemaError) {
+        const { user_id, media_type, ...postWithoutOptionalColumns } = payload as any;
         const { data: retryData, error: retryError } = await supabase
           .from('posts')
-          .insert([postWithoutUserId])
+          .insert([postWithoutOptionalColumns])
           .select();
         
         if (retryError) throw retryError;
@@ -1408,29 +1442,28 @@ export const dataService = {
   },
 
   async uploadImage(file: File): Promise<string | null> {
-    
     const fileExt = file.name.split('.').pop();
-    const fileName = `${Math.random()}.${fileExt}`;
-    const filePath = `post-images/${fileName}`;
+    const fileName = `${Date.now()}-${Math.random()}.${fileExt}`;
+    const mediaFolder = file.type.startsWith('video') ? 'post-videos' : 'post-images';
+    const filePath = `${mediaFolder}/${fileName}`;
+    const candidateBuckets = ['images', 'highlights'] as const;
 
-    const { error: uploadError } = await supabase.storage
-      .from('images')
-      .upload(filePath, file);
+    for (const bucket of candidateBuckets) {
+      const { error: uploadError } = await supabase.storage
+        .from(bucket)
+        .upload(filePath, file);
 
-    if (uploadError) {
-      console.error('Error uploading image:', uploadError);
-      // Se o bucket não existir, tentamos criar ou avisar
-      if (uploadError.message.includes('bucket not found')) {
-        console.warn('Bucket "images" not found. Please create it in Supabase Storage.');
+      if (!uploadError) {
+        const { data } = supabase.storage
+          .from(bucket)
+          .getPublicUrl(filePath);
+        return data.publicUrl;
       }
-      return null;
+
+      console.error(`Error uploading post media to bucket "${bucket}":`, uploadError);
     }
 
-    const { data } = supabase.storage
-      .from('images')
-      .getPublicUrl(filePath);
-
-    return data.publicUrl;
+    return null;
   },
 
   async likePost(postId: number, reactionType: string = 'like', userId?: string) {

@@ -1,5 +1,5 @@
-import React, { useState, useRef } from 'react';
-import { X, Send, Image as ImageIcon, Trash2 } from 'lucide-react';
+import React, { useEffect, useState, useRef } from 'react';
+import { X, Send, Image as ImageIcon, Trash2, Film } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { dataService } from '../services/dataService';
 import { useAuth } from '../contexts/AuthContext';
@@ -14,44 +14,57 @@ export default function CreatePostModal({ isOpen, onClose, onPostCreated }: Crea
   const [content, setContent] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [selectedImage, setSelectedImage] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [selectedMedia, setSelectedMedia] = useState<File | null>(null);
+  const [mediaPreview, setMediaPreview] = useState<string | null>(null);
+  const [mediaType, setMediaType] = useState<'image' | 'video' | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { user } = useAuth();
 
-  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  useEffect(() => {
+    return () => {
+      if (mediaPreview) {
+        URL.revokeObjectURL(mediaPreview);
+      }
+    };
+  }, [mediaPreview]);
+
+  const handleMediaSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      setSelectedImage(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagePreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+      const nextType: 'image' | 'video' = file.type.startsWith('video') ? 'video' : 'image';
+      if (mediaPreview) {
+        URL.revokeObjectURL(mediaPreview);
+      }
+      setSelectedMedia(file);
+      setMediaType(nextType);
+      setMediaPreview(URL.createObjectURL(file));
     }
   };
 
-  const removeImage = () => {
-    setSelectedImage(null);
-    setImagePreview(null);
+  const removeMedia = () => {
+    setSelectedMedia(null);
+    setMediaType(null);
+    if (mediaPreview) {
+      URL.revokeObjectURL(mediaPreview);
+    }
+    setMediaPreview(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!content.trim() && !selectedImage) return;
+    if (!content.trim() && !selectedMedia) return;
 
     setIsSubmitting(true);
     setErrorMessage(null);
     try {
       const userName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Usuário';
       
-      let imageUrl = null;
-      if (selectedImage) {
-        imageUrl = await dataService.uploadImage(selectedImage);
-        // Se falhar o upload real (bucket não existe), usamos o preview Base64 para demonstração
-        if (!imageUrl) {
-          imageUrl = imagePreview;
+      let mediaUrl: string | null = null;
+      if (selectedMedia) {
+        mediaUrl = await dataService.uploadImage(selectedMedia);
+        if (!mediaUrl) {
+          throw new Error('Não foi possível enviar a mídia. Verifique o bucket de storage.');
         }
       }
 
@@ -59,12 +72,13 @@ export default function CreatePostModal({ isOpen, onClose, onPostCreated }: Crea
         user_id: user?.id,
         author: userName,
         content: content,
-        image: imageUrl || undefined
+        image: mediaUrl || undefined,
+        media_type: mediaType || undefined,
       });
       
       if (success) {
         setContent('');
-        removeImage();
+        removeMedia();
         onPostCreated();
         onClose();
       }
@@ -83,29 +97,29 @@ export default function CreatePostModal({ isOpen, onClose, onPostCreated }: Crea
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/45 backdrop-blur-sm"
         >
           <motion.div
             initial={{ opacity: 0, scale: 0.9, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9, y: 20 }}
-            className="bg-[#1a1a1a] border border-white/10 w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden"
+            className="bg-white border border-slate-200 w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden"
           >
             {/* Header */}
-            <div className="flex items-center justify-between p-4 border-b border-white/5">
-              <h2 className="text-lg font-bold text-white">Criar Novo Post</h2>
+            <div className="flex items-center justify-between p-4 border-b border-slate-100 bg-slate-50">
+              <h2 className="text-lg font-bold text-slate-800">Criar Novo Post</h2>
               <button 
                 onClick={onClose}
-                className="p-2 hover:bg-white/5 rounded-full transition-colors"
+                className="p-2 hover:bg-slate-200 rounded-full transition-colors"
               >
-                <X className="w-5 h-5 text-white/40" />
+                <X className="w-5 h-5 text-slate-500" />
               </button>
             </div>
 
             {/* Form */}
             <form onSubmit={handleSubmit} className="p-4">
               {errorMessage && (
-                <div className="mb-4 p-3 bg-red-900/20 border border-red-900/50 text-red-400 text-sm rounded-xl font-medium">
+                <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl font-medium">
                   ⚠️ {errorMessage}
                 </div>
               )}
@@ -114,23 +128,33 @@ export default function CreatePostModal({ isOpen, onClose, onPostCreated }: Crea
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
                 placeholder="O que você está pensando?"
-                className="w-full min-h-[120px] p-4 text-white bg-white/5 rounded-xl border-none focus:ring-2 focus:ring-[#E50914]/50 outline-none resize-none text-lg placeholder:text-white/20"
+                className="w-full min-h-[120px] p-4 text-slate-800 bg-slate-50 rounded-xl border border-slate-200 focus:ring-2 focus:ring-nexus-blue/25 focus:border-nexus-blue/40 outline-none resize-none text-lg placeholder:text-slate-400"
               />
 
-              {/* Image Preview */}
+              {/* Media Preview */}
               <AnimatePresence>
-                {imagePreview && (
+                {mediaPreview && (
                   <motion.div 
                     initial={{ opacity: 0, scale: 0.9 }}
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.9 }}
-                    className="relative mt-4 rounded-xl overflow-hidden border border-white/10"
+                    className="relative mt-4 rounded-xl overflow-hidden border border-slate-200 bg-slate-900"
                   >
-                    <img src={imagePreview} alt="Preview" className="w-full max-h-[300px] object-cover" />
+                    {mediaType === 'video' ? (
+                      <video
+                        src={mediaPreview}
+                        controls
+                        playsInline
+                        preload="metadata"
+                        className="w-full max-h-[300px] object-cover"
+                      />
+                    ) : (
+                      <img src={mediaPreview} alt="Preview" className="w-full max-h-[300px] object-cover" />
+                    )}
                     <button
                       type="button"
-                      onClick={removeImage}
-                      className="absolute top-2 right-2 p-2 bg-black/50 text-white rounded-full hover:bg-black/70 transition-colors backdrop-blur-sm"
+                      onClick={removeMedia}
+                      className="absolute top-2 right-2 p-2 bg-black/55 text-white rounded-full hover:bg-black/75 transition-colors backdrop-blur-sm"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -143,26 +167,30 @@ export default function CreatePostModal({ isOpen, onClose, onPostCreated }: Crea
                   <input 
                     type="file" 
                     ref={fileInputRef}
-                    onChange={handleImageSelect}
-                    accept="image/*"
+                    onChange={handleMediaSelect}
+                    accept="image/*,video/*"
                     className="hidden"
                   />
                   <button 
                     type="button" 
                     onClick={() => fileInputRef.current?.click()}
-                    className={`p-2 rounded-full transition-colors ${imagePreview ? 'text-[#E50914] bg-[#E50914]/10' : 'text-white/40 hover:bg-white/5'}`}
+                    className={`p-2 rounded-full transition-colors ${mediaPreview ? 'text-nexus-blue bg-nexus-blue/10' : 'text-slate-500 hover:bg-slate-100'}`}
+                    title="Adicionar foto ou vídeo"
                   >
-                    <ImageIcon className="w-5 h-5" />
+                    {mediaType === 'video' ? <Film className="w-5 h-5" /> : <ImageIcon className="w-5 h-5" />}
                   </button>
+                  <span className="text-xs font-semibold text-slate-500">
+                    {mediaType === 'video' ? 'Vídeo selecionado' : mediaType === 'image' ? 'Foto selecionada' : 'Foto/Vídeo'}
+                  </span>
                 </div>
 
                 <button
                   type="submit"
-                  disabled={(!content.trim() && !selectedImage) || isSubmitting}
+                  disabled={(!content.trim() && !selectedMedia) || isSubmitting}
                   className={`flex items-center gap-2 px-6 py-2.5 rounded-full font-bold transition-all ${
-                    (!content.trim() && !selectedImage) || isSubmitting
-                      ? 'bg-white/5 text-white/20 cursor-not-allowed'
-                      : 'bg-[#E50914] text-white hover:bg-[#b20710] shadow-lg shadow-[#E50914]/20 active:scale-95'
+                    (!content.trim() && !selectedMedia) || isSubmitting
+                      ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                      : 'bg-nexus-blue text-white hover:bg-nexus-blue/90 shadow-lg shadow-nexus-blue/20 active:scale-95'
                   }`}
                 >
                   {isSubmitting ? (

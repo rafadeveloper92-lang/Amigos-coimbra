@@ -74,6 +74,7 @@ export default function Feed({ onNavigate, onViewProfile, onSendMessage }: FeedP
               time={post.time}
               content={post.content}
               image={post.image}
+              media_type={post.media_type}
               likes={post.likes}
               comments={post.comments}
               reaction_counts={post.reaction_counts}
