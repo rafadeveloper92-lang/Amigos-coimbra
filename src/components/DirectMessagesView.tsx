@@ -307,7 +307,7 @@ export default function DirectMessagesView({ targetUserId, onBack, onViewProfile
 
   const displayName = targetProfile ? `${targetProfile.first_name} ${targetProfile.last_name}` : 'Usuário';
   const presenceMeta = getPresenceMeta(targetProfile?.updated_at);
-  const headerPresenceLabel = isRemoteTyping ? 'digitando...' : presenceMeta.label;
+  const headerPresenceLabel = presenceMeta.label;
 
   return (
     <div className="max-w-4xl mx-auto bg-white min-h-[calc(100vh-80px)] md:min-h-[calc(100vh-120px)] flex flex-col rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
@@ -332,8 +332,19 @@ export default function DirectMessagesView({ targetUserId, onBack, onViewProfile
           </div>
           <div className="flex flex-col min-w-0">
             <h2 className="text-xl font-bold hover:underline truncate">{displayName}</h2>
-            <p className={`text-xs font-medium ${isRemoteTyping ? 'text-emerald-100 animate-pulse' : presenceMeta.isOnline ? 'text-emerald-200' : 'text-slate-200'}`}>
-              {headerPresenceLabel}
+            <p className={`text-xs font-medium ${isRemoteTyping ? 'text-emerald-100' : presenceMeta.isOnline ? 'text-emerald-200' : 'text-slate-200'}`}>
+              {isRemoteTyping ? (
+                <span className="inline-flex items-center gap-1.5">
+                  <span>digitando</span>
+                  <span className="inline-flex items-center gap-1" aria-hidden="true">
+                    <span className="typing-dot typing-dot-1" />
+                    <span className="typing-dot typing-dot-2" />
+                    <span className="typing-dot typing-dot-3" />
+                  </span>
+                </span>
+              ) : (
+                headerPresenceLabel
+              )}
             </p>
           </div>
         </div>
