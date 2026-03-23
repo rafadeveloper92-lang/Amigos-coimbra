@@ -1615,6 +1615,9 @@ export const dataService = {
   },
 
   async getComments(postId: number): Promise<Comment[]> {
+    const { data: authData } = await supabase.auth.getUser();
+    const currentUserId = authData?.user?.id || null;
+
     const { data, error } = await supabase
       .from('comments')
       .select(`
@@ -1639,8 +1642,8 @@ export const dataService = {
         .order('created_at', { ascending: true });
       return fallbackData || [];
     }
-    
-    return (data || []).map(comment => {
+
+    const normalized = (data || []).map(comment => {
       const profile = (comment as any).profiles;
       const authorName = profile 
         ? (profile.username || `${profile.first_name || ''} ${profile.last_name || ''}`.trim()) 
@@ -1652,6 +1655,88 @@ export const dataService = {
         author_avatar: profile?.avatar_url || null
       };
     });
+
+    if (normalized.length === 0) {
+      return normalized;
+    }
+
+    const commentIds = normalized.map((comment) => comment.id);
+    let likesRows: Array<{ comment_id: number; user_id?: string | null }> = [];
+
+    const { data: likesData, error: likesError } = await supabase
+      .from('comment_likes')
+      .select('comment_id, user_id')
+      .in('comment_id', commentIds);
+
+    if (likesError) {
+      // Não quebra o carregamento de comentários caso a tabela/políticas ainda não existam.
+      console.warn('comment_likes indisponível, retornando comentários sem likes:', likesError.message);
+    } else {
+      likesRows = (likesData || []) as Array<{ comment_id: number; user_id?: string | null }>;
+    }
+
+    const likesCountByComment = likesRows.reduce<Record<number, number>>((acc, row) => {
+      const key = Number(row.comment_id);
+      acc[key] = (acc[key] || 0) + 1;
+      return acc;
+    }, {});
+
+    const likedByMeSet = new Set<number>(
+      likesRows
+        .filter((row) => !!currentUserId && row.user_id === currentUserId)
+        .map((row) => Number(row.comment_id))
+    );
+
+    return normalized.map((comment) => ({
+      ...comment,
+      likes_count: likesCountByComment[comment.id] || 0,
+      liked_by_me: likedByMeSet.has(comment.id),
+    }));
+  },
+
+  async toggleCommentLike(commentId: number, userId?: string): Promise<{ liked: boolean; likes_count: number } | null> {
+    const uid = userId || (await supabase.auth.getUser()).data.user?.id;
+    if (!uid) return null;
+
+    const { data: existingLike, error: existingError } = await supabase
+      .from('comment_likes')
+      .select('id')
+      .eq('comment_id', commentId)
+      .eq('user_id', uid)
+      .maybeSingle();
+
+    if (existingError && !existingError.message.toLowerCase().includes('no rows')) {
+      console.error('Erro ao verificar like de comentário:', existingError);
+      throw existingError;
+    }
+
+    let liked = false;
+    if (existingLike?.id) {
+      const { error: deleteError } = await supabase
+        .from('comment_likes')
+        .delete()
+        .eq('id', existingLike.id);
+      if (deleteError) throw deleteError;
+      liked = false;
+    } else {
+      const { error: insertError } = await supabase
+        .from('comment_likes')
+        .insert([{ comment_id: commentId, user_id: uid }]);
+      if (insertError) throw insertError;
+      liked = true;
+    }
+
+    const { count, error: countError } = await supabase
+      .from('comment_likes')
+      .select('id', { count: 'exact', head: true })
+      .eq('comment_id', commentId);
+
+    if (countError) throw countError;
+
+    return {
+      liked,
+      likes_count: count || 0,
+    };
   },
 
   async deletePost(postId: number) {

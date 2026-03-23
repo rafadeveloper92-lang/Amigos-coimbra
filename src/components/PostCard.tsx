@@ -367,6 +367,47 @@ export default function PostCard({ id, userId, author, author_avatar, group, tim
     }
   };
 
+  const handleToggleCommentLike = async (commentId: number) => {
+    if (!user?.id) {
+      alert('Faça login para curtir comentários.');
+      return;
+    }
+
+    const previousComments = comments;
+    setComments((prev) =>
+      prev.map((comment) => {
+        if (comment.id !== commentId) return comment;
+        const wasLiked = !!comment.liked_by_me;
+        const previousCount = Number(comment.likes_count || 0);
+        return {
+          ...comment,
+          liked_by_me: !wasLiked,
+          likes_count: Math.max(0, previousCount + (wasLiked ? -1 : 1)),
+        };
+      })
+    );
+
+    try {
+      const result = await dataService.toggleCommentLike(commentId, user.id);
+      if (!result) throw new Error('Não autenticado para curtir comentário.');
+      setComments((prev) =>
+        prev.map((comment) =>
+          comment.id === commentId
+            ? {
+                ...comment,
+                liked_by_me: result.liked,
+                likes_count: result.likes_count,
+              }
+            : comment
+        )
+      );
+    } catch (error) {
+      console.error('Erro ao curtir comentário:', error);
+      setComments(previousComments);
+      await fetchComments();
+    }
+  };
+
   const handleShare = async () => {
     const shareData = {
       title: `Post de ${author} no CineStream Pro`,
@@ -840,14 +881,25 @@ export default function PostCard({ id, userId, author, author_avatar, group, tim
                             alt={comment.author}
                             className="w-9 h-9 rounded-full object-cover flex-shrink-0"
                           />
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-2">
-                              <p className="text-[13px] font-semibold text-white">{comment.author}</p>
-                              <span className="text-[10px] text-white/50">
-                                {new Date(comment.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                              </span>
+                          <div className="min-w-0 flex-1 flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2">
+                                <p className="text-[13px] font-semibold text-white">{comment.author}</p>
+                                <span className="text-[10px] text-white/50">
+                                  {new Date(comment.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                </span>
+                              </div>
+                              <p className="text-sm text-white/90 break-words">{comment.content}</p>
                             </div>
-                            <p className="text-sm text-white/90 break-words">{comment.content}</p>
+                            <button
+                              onClick={() => handleToggleCommentLike(comment.id)}
+                              className="flex flex-col items-center text-white/75 hover:text-white transition-colors pt-0.5"
+                            >
+                              <Heart className={`w-4 h-4 ${comment.liked_by_me ? 'fill-red-500 text-red-500' : ''}`} />
+                              <span className="text-[10px] mt-0.5 leading-none">
+                                {Number(comment.likes_count || 0)}
+                              </span>
+                            </button>
                           </div>
                         </div>
                       ))
@@ -1079,13 +1131,26 @@ export default function PostCard({ id, userId, author, author_avatar, group, tim
                 <div key={comment.id} className="flex gap-3">
                   <img src={getAvatarUrl(comment.author_avatar, comment.author)} alt={comment.author} className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
                   <div className="bg-white p-3 rounded-2xl shadow-sm flex-1 border border-slate-100">
-                    <div className="flex items-center justify-between mb-1">
-                      <h4 className="text-xs font-bold text-slate-900">{comment.author}</h4>
-                      <span className="text-[10px] text-slate-400">
-                        {new Date(comment.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </span>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <h4 className="text-xs font-bold text-slate-900">{comment.author}</h4>
+                          <span className="text-[10px] text-slate-400">
+                            {new Date(comment.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-600">{comment.content}</p>
+                      </div>
+                      <button
+                        onClick={() => handleToggleCommentLike(comment.id)}
+                        className="flex flex-col items-center text-slate-400 hover:text-slate-700 transition-colors"
+                      >
+                        <Heart className={`w-4 h-4 ${comment.liked_by_me ? 'fill-red-500 text-red-500' : ''}`} />
+                        <span className="text-[10px] mt-0.5 leading-none text-slate-500">
+                          {Number(comment.likes_count || 0)}
+                        </span>
+                      </button>
                     </div>
-                    <p className="text-xs text-slate-600">{comment.content}</p>
                   </div>
                 </div>
               ))

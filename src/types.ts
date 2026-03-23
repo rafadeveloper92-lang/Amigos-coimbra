@@ -44,6 +44,8 @@ export interface Comment {
   author_avatar?: string;
   content: string;
   created_at: string;
+  likes_count?: number;
+  liked_by_me?: boolean;
 }
 
 export interface Group {
