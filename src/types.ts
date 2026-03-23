@@ -125,8 +125,16 @@ export interface Story {
   music_artist?: string;
   music_cover_url?: string;
   music_preview_url?: string;
+  music_display_mode?: 'album' | 'lyrics';
+  lyrics_text?: string;
   mention_tags?: string[];
   stickers?: StorySticker[];
+  media_scale?: number;
+  media_x?: number;
+  media_y?: number;
+  caption_x?: number;
+  caption_y?: number;
+  caption_scale?: number;
   created_at: string;
   expires_at: string;
   profile?: Profile;
@@ -137,4 +145,5 @@ export interface StorySticker {
   label: string;
   x: number;
   y: number;
+  scale?: number;
 }

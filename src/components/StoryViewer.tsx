@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion } from 'motion/react';
-import { X, ChevronLeft, ChevronRight, MoreVertical, Trash2, MapPin, Music } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, MoreVertical, Trash2, MapPin, Music, Play, Pause } from 'lucide-react';
 import { Story } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { dataService } from '../services/dataService';
@@ -23,6 +23,8 @@ export default function StoryViewer({ stories, onClose }: StoryViewerProps) {
   const [showMenu, setShowMenu] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [isMusicPlaying, setIsMusicPlaying] = useState(false);
 
   const currentStory = localStories[currentIndex];
   const user = currentStory?.profile;
@@ -41,6 +43,22 @@ export default function StoryViewer({ stories, onClose }: StoryViewerProps) {
       onClose();
     }
   }, [localStories.length, onClose]);
+
+  useEffect(() => {
+    if (!currentStory?.music_preview_url || !audioRef.current) {
+      setIsMusicPlaying(false);
+      return;
+    }
+
+    const audio = audioRef.current;
+    audio.src = currentStory.music_preview_url;
+    audio.currentTime = 0;
+    audio.play().then(() => {
+      setIsMusicPlaying(true);
+    }).catch(() => {
+      setIsMusicPlaying(false);
+    });
+  }, [currentStory?.id, currentStory?.music_preview_url]);
 
   useEffect(() => {
     if (localStories.length === 0) return;
@@ -129,6 +147,21 @@ export default function StoryViewer({ stories, onClose }: StoryViewerProps) {
 
   if (!currentStory) return null;
 
+  const toggleMusic = async () => {
+    if (!audioRef.current || !currentStory.music_preview_url) return;
+    if (isMusicPlaying) {
+      audioRef.current.pause();
+      setIsMusicPlaying(false);
+      return;
+    }
+    try {
+      await audioRef.current.play();
+      setIsMusicPlaying(true);
+    } catch {
+      setIsMusicPlaying(false);
+    }
+  };
+
   return (
     <motion.div 
       initial={{ opacity: 0 }}
@@ -136,6 +169,12 @@ export default function StoryViewer({ stories, onClose }: StoryViewerProps) {
       exit={{ opacity: 0 }}
       className="fixed inset-0 z-[300] bg-black flex items-center justify-center"
     >
+      <audio
+        ref={audioRef}
+        onEnded={() => setIsMusicPlaying(false)}
+        onPause={() => setIsMusicPlaying(false)}
+        onPlay={() => setIsMusicPlaying(true)}
+      />
       <div className="relative w-full max-w-lg h-full md:h-[90vh] md:rounded-2xl overflow-hidden bg-slate-900 shadow-2xl">
         {/* Progress Bars */}
         <div className="absolute top-4 left-4 right-4 z-20 flex gap-1">
@@ -207,15 +246,42 @@ export default function StoryViewer({ stories, onClose }: StoryViewerProps) {
                 {currentStory.location_name}
               </div>
             )}
-            {currentStory.music_title && (
-              <div className="px-3 py-1 rounded-full bg-black/50 text-white text-xs font-semibold flex items-center gap-1 max-w-[260px]">
-                <Music className="w-3.5 h-3.5" />
+            {currentStory.music_title && currentStory.music_display_mode !== 'lyrics' && (
+              <button
+                onClick={toggleMusic}
+                className="px-3 py-1 rounded-full bg-black/50 text-white text-xs font-semibold flex items-center gap-1 max-w-[280px]"
+              >
+                {currentStory.music_cover_url ? (
+                  <img
+                    src={currentStory.music_cover_url}
+                    alt={currentStory.music_title}
+                    className="w-4 h-4 rounded-full object-cover"
+                  />
+                ) : (
+                  <Music className="w-3.5 h-3.5" />
+                )}
                 <span className="truncate">
                   {currentStory.music_title}
                   {currentStory.music_artist ? ` - ${currentStory.music_artist}` : ''}
                 </span>
-              </div>
+                {currentStory.music_preview_url && (
+                  <span className="ml-1">{isMusicPlaying ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}</span>
+                )}
+              </button>
             )}
+          </div>
+        )}
+
+        {currentStory.music_title && currentStory.music_display_mode === 'lyrics' && (
+          <div className="absolute left-4 right-4 bottom-28 z-20 overflow-hidden pointer-events-none">
+            <motion.div
+              className="text-white text-base font-bold whitespace-nowrap drop-shadow-[0_2px_8px_rgba(0,0,0,0.85)]"
+              initial={{ x: '100%' }}
+              animate={{ x: '-120%' }}
+              transition={{ repeat: Infinity, duration: 9, ease: 'linear' }}
+            >
+              {currentStory.lyrics_text || `${currentStory.music_title}${currentStory.music_artist ? ` - ${currentStory.music_artist}` : ''}`}
+            </motion.div>
           </div>
         )}
 
@@ -248,27 +314,39 @@ export default function StoryViewer({ stories, onClose }: StoryViewerProps) {
           onTouchStart={handleMouseDown}
           onTouchEnd={handleMouseUp}
         >
-          {currentStory.media_type === 'video' ? (
-            <video 
-              src={currentStory.media_url} 
-              autoPlay 
-              muted 
-              playsInline 
-              className="w-full h-full object-contain"
-            />
-          ) : (
-            <img 
-              src={currentStory.media_url} 
-              alt="Story" 
-              className="w-full h-full object-contain"
-            />
-          )}
+          <div
+            className="w-full h-full"
+            style={{
+              transform: `translate(${currentStory.media_x || 0}px, ${currentStory.media_y || 0}px) scale(${currentStory.media_scale || 1})`,
+              transformOrigin: 'center center',
+            }}
+          >
+            {currentStory.media_type === 'video' ? (
+              <video
+                src={currentStory.media_url}
+                autoPlay
+                muted
+                playsInline
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <img
+                src={currentStory.media_url}
+                alt="Story"
+                className="w-full h-full object-cover"
+              />
+            )}
+          </div>
 
           {currentStory.stickers && currentStory.stickers.map((sticker) => (
             <div
               key={sticker.id}
               className="absolute z-20 text-3xl md:text-4xl drop-shadow-[0_2px_10px_rgba(0,0,0,0.85)] pointer-events-none"
-              style={{ left: `${sticker.x}%`, top: `${sticker.y}%` }}
+              style={{
+                left: '50%',
+                top: '50%',
+                transform: `translate(${sticker.x || 0}px, ${sticker.y || 0}px) scale(${sticker.scale || 1})`,
+              }}
             >
               {sticker.label}
             </div>
@@ -289,7 +367,12 @@ export default function StoryViewer({ stories, onClose }: StoryViewerProps) {
 
         {/* Caption Overlay */}
         {currentStory.caption && (
-          <div className="absolute left-4 right-4 bottom-24 z-20 text-center pointer-events-none">
+          <div
+            className="absolute left-1/2 top-1/2 z-20 text-center pointer-events-none px-4"
+            style={{
+              transform: `translate(${currentStory.caption_x || 0}px, ${currentStory.caption_y || 0}px) scale(${currentStory.caption_scale || 1})`,
+            }}
+          >
             <p
               className="text-2xl md:text-3xl font-black break-words drop-shadow-[0_2px_10px_rgba(0,0,0,0.85)]"
               style={{

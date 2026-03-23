@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import {
@@ -12,11 +12,15 @@ import {
   Search,
   X,
   Check,
+  Play,
+  Pause,
+  Move,
 } from 'lucide-react';
 import { supabase } from '../services/supabaseClient';
 import { StorySticker } from '../types';
 
-type ComposerPanel = 'none' | 'text' | 'stickers' | 'mentions' | 'music' | 'location';
+type ComposerPanel = 'none' | 'media' | 'text' | 'stickers' | 'mentions' | 'music' | 'location';
+type MusicDisplayMode = 'album' | 'lyrics';
 
 interface MusicTrack {
   trackId: number;
@@ -26,6 +30,12 @@ interface MusicTrack {
   previewUrl?: string;
 }
 
+interface OverlayTransform {
+  x: number;
+  y: number;
+  scale: number;
+}
+
 export interface StoryComposerPayload {
   caption?: string;
   textColor?: string;
@@ -33,6 +43,14 @@ export interface StoryComposerPayload {
   locationName?: string;
   mentionTags?: string[];
   stickers?: StorySticker[];
+  musicDisplayMode?: MusicDisplayMode;
+  lyricsText?: string;
+  mediaScale?: number;
+  mediaX?: number;
+  mediaY?: number;
+  captionX?: number;
+  captionY?: number;
+  captionScale?: number;
   music?: {
     title: string;
     artist?: string;
@@ -61,12 +79,12 @@ const FONT_OPTIONS = [
   { value: 'cursive', label: 'Script' },
 ];
 const STICKER_POSITIONS = [
-  { x: 12, y: 22 },
-  { x: 72, y: 20 },
-  { x: 20, y: 38 },
-  { x: 74, y: 40 },
-  { x: 14, y: 58 },
-  { x: 70, y: 60 },
+  { x: -120, y: -180 },
+  { x: 120, y: -180 },
+  { x: -100, y: -60 },
+  { x: 100, y: -30 },
+  { x: -120, y: 90 },
+  { x: 120, y: 140 },
 ];
 
 export default function StoryComposer({
@@ -88,10 +106,17 @@ export default function StoryComposer({
   const [mentionResults, setMentionResults] = useState<string[]>([]);
   const [mentionTags, setMentionTags] = useState<string[]>([]);
   const [stickers, setStickers] = useState<StorySticker[]>([]);
+  const [selectedStickerId, setSelectedStickerId] = useState<string | null>(null);
   const [musicQuery, setMusicQuery] = useState('');
   const [musicResults, setMusicResults] = useState<MusicTrack[]>([]);
   const [musicLoading, setMusicLoading] = useState(false);
   const [selectedMusic, setSelectedMusic] = useState<MusicTrack | null>(null);
+  const [musicDisplayMode, setMusicDisplayMode] = useState<MusicDisplayMode>('album');
+  const [lyricsText, setLyricsText] = useState('');
+  const [mediaTransform, setMediaTransform] = useState<OverlayTransform>({ x: 0, y: 0, scale: 1 });
+  const [captionTransform, setCaptionTransform] = useState<OverlayTransform>({ x: 0, y: 0, scale: 1 });
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [playingTrackId, setPlayingTrackId] = useState<number | null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -104,9 +129,20 @@ export default function StoryComposer({
     setMentionResults([]);
     setMentionTags([]);
     setStickers([]);
+    setSelectedStickerId(null);
     setMusicQuery('');
     setMusicResults([]);
     setSelectedMusic(null);
+    setMusicDisplayMode('album');
+    setLyricsText('');
+    setMediaTransform({ x: 0, y: 0, scale: 1 });
+    setCaptionTransform({ x: 0, y: 0, scale: 1 });
+
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.src = '';
+    }
+    setPlayingTrackId(null);
   }, [isOpen, file]);
 
   useEffect(() => {
@@ -176,6 +212,34 @@ export default function StoryComposer({
     return () => clearTimeout(timeout);
   }, [isOpen, panel, musicQuery]);
 
+  useEffect(() => {
+    if (!selectedMusic) return;
+    if (!lyricsText.trim()) {
+      setLyricsText(`${selectedMusic.trackName} - ${selectedMusic.artistName}`);
+    }
+  }, [selectedMusic, lyricsText]);
+
+  const toggleTrackPreview = async (track: MusicTrack) => {
+    if (!track.previewUrl) return;
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    if (playingTrackId === track.trackId) {
+      audio.pause();
+      setPlayingTrackId(null);
+      return;
+    }
+
+    try {
+      audio.src = track.previewUrl;
+      audio.currentTime = 0;
+      await audio.play();
+      setPlayingTrackId(track.trackId);
+    } catch {
+      setPlayingTrackId(null);
+    }
+  };
+
   const handleAddMention = (username: string) => {
     const normalized = username.replace('@', '').trim();
     if (!normalized || mentionTags.includes(normalized)) return;
@@ -191,9 +255,20 @@ export default function StoryComposer({
       label,
       x: position.x,
       y: position.y,
+      scale: 1,
     };
     setStickers((prev) => [...prev, sticker]);
+    setSelectedStickerId(sticker.id);
   };
+
+  const updateSelectedStickerScale = (scale: number) => {
+    if (!selectedStickerId) return;
+    setStickers((prev) =>
+      prev.map((sticker) => (sticker.id === selectedStickerId ? { ...sticker, scale } : sticker))
+    );
+  };
+
+  const selectedSticker = stickers.find((sticker) => sticker.id === selectedStickerId);
 
   const handlePublish = async () => {
     if (!file) return;
@@ -204,6 +279,14 @@ export default function StoryComposer({
       locationName: locationName.trim() || undefined,
       mentionTags: mentionTags.length > 0 ? mentionTags : undefined,
       stickers: stickers.length > 0 ? stickers : undefined,
+      musicDisplayMode,
+      lyricsText: musicDisplayMode === 'lyrics' ? lyricsText.trim() || undefined : undefined,
+      mediaScale: mediaTransform.scale,
+      mediaX: mediaTransform.x,
+      mediaY: mediaTransform.y,
+      captionX: captionTransform.x,
+      captionY: captionTransform.y,
+      captionScale: captionTransform.scale,
       music: selectedMusic
         ? {
             title: selectedMusic.trackName,
@@ -224,27 +307,65 @@ export default function StoryComposer({
       exit={{ opacity: 0 }}
       className="fixed inset-0 z-[10000] bg-black"
     >
-      <div className="relative w-full h-full overflow-hidden bg-black">
-        {previewUrl ? (
-          file?.type.startsWith('video') ? (
-            <video src={previewUrl} autoPlay loop muted playsInline className="w-full h-full object-cover" />
+      <audio
+        ref={audioRef}
+        onEnded={() => setPlayingTrackId(null)}
+        onPause={() => setPlayingTrackId((current) => (audioRef.current?.ended ? null : current))}
+      />
+      <div className="relative w-full h-full overflow-hidden bg-black select-none">
+        {/* Media layer with drag + zoom */}
+        <motion.div
+          drag
+          dragMomentum={false}
+          className="absolute inset-0 cursor-grab active:cursor-grabbing touch-none"
+          style={{ x: mediaTransform.x, y: mediaTransform.y, scale: mediaTransform.scale }}
+          onDragEnd={(_, info) => {
+            setMediaTransform((prev) => ({
+              ...prev,
+              x: prev.x + info.offset.x,
+              y: prev.y + info.offset.y,
+            }));
+          }}
+        >
+          {previewUrl ? (
+            file?.type.startsWith('video') ? (
+              <video src={previewUrl} autoPlay loop muted playsInline className="w-full h-full object-cover" />
+            ) : (
+              <img src={previewUrl} alt="Story preview" className="w-full h-full object-cover" />
+            )
           ) : (
-            <img src={previewUrl} alt="Story preview" className="w-full h-full object-cover" />
-          )
-        ) : (
-          <div className="w-full h-full flex items-center justify-center text-white/80">
-            Selecione uma foto ou vídeo
-          </div>
-        )}
+            <div className="w-full h-full flex items-center justify-center text-white/80">
+              Selecione uma foto ou vídeo
+            </div>
+          )}
+        </motion.div>
 
         <div className="absolute inset-0 bg-gradient-to-b from-black/45 via-transparent to-black/45 pointer-events-none" />
 
-        {selectedMusic && (
+        {/* Music overlay preview */}
+        {selectedMusic && musicDisplayMode === 'album' && (
           <div className="absolute top-24 left-4 z-20 bg-black/55 text-white rounded-full px-3 py-1.5 text-xs font-semibold flex items-center gap-2">
-            <Music2 className="w-3.5 h-3.5" />
+            {selectedMusic.artworkUrl100 ? (
+              <img src={selectedMusic.artworkUrl100} alt={selectedMusic.trackName} className="w-5 h-5 rounded-full object-cover" />
+            ) : (
+              <Music2 className="w-3.5 h-3.5" />
+            )}
             <span className="truncate max-w-[220px]">
               {selectedMusic.trackName} {selectedMusic.artistName ? `- ${selectedMusic.artistName}` : ''}
             </span>
+          </div>
+        )}
+
+        {selectedMusic && musicDisplayMode === 'lyrics' && (
+          <div className="absolute left-4 right-4 bottom-28 z-20 overflow-hidden pointer-events-none">
+            <motion.div
+              className="text-white text-base font-bold whitespace-nowrap drop-shadow-[0_2px_8px_rgba(0,0,0,0.85)]"
+              initial={{ x: '100%' }}
+              animate={{ x: '-120%' }}
+              transition={{ repeat: Infinity, duration: 9, ease: 'linear' }}
+            >
+              {lyricsText || `${selectedMusic.trackName} - ${selectedMusic.artistName}`}
+            </motion.div>
           </div>
         )}
 
@@ -266,24 +387,54 @@ export default function StoryComposer({
         )}
 
         {stickers.map((sticker) => (
-          <div
+          <motion.div
             key={sticker.id}
-            className="absolute z-20 text-3xl drop-shadow-[0_2px_8px_rgba(0,0,0,0.75)]"
-            style={{ left: `${sticker.x}%`, top: `${sticker.y}%` }}
+            drag
+            dragMomentum={false}
+            className={`absolute left-1/2 top-1/2 z-20 text-3xl md:text-4xl drop-shadow-[0_2px_8px_rgba(0,0,0,0.75)] ${
+              selectedStickerId === sticker.id ? 'ring-2 ring-white/70 rounded-lg' : ''
+            }`}
+            style={{ x: sticker.x, y: sticker.y, scale: sticker.scale || 1 }}
+            onPointerDown={() => setSelectedStickerId(sticker.id)}
+            onDragEnd={(_, info) => {
+              setStickers((prev) =>
+                prev.map((item) =>
+                  item.id === sticker.id
+                    ? {
+                        ...item,
+                        x: item.x + info.offset.x,
+                        y: item.y + info.offset.y,
+                      }
+                    : item
+                )
+              );
+            }}
           >
             {sticker.label}
-          </div>
+          </motion.div>
         ))}
 
         {caption && (
-          <div className="absolute left-4 right-4 top-1/2 -translate-y-1/2 z-20 text-center pointer-events-none">
+          <motion.div
+            drag
+            dragMomentum={false}
+            className="absolute left-1/2 top-1/2 z-20 text-center px-4"
+            style={{ x: captionTransform.x, y: captionTransform.y, scale: captionTransform.scale }}
+            onDragEnd={(_, info) => {
+              setCaptionTransform((prev) => ({
+                ...prev,
+                x: prev.x + info.offset.x,
+                y: prev.y + info.offset.y,
+              }));
+            }}
+          >
             <p
               className="text-3xl md:text-4xl font-black break-words drop-shadow-[0_2px_10px_rgba(0,0,0,0.85)]"
               style={{ color: textColor, fontFamily: textFont }}
             >
               {caption}
             </p>
-          </div>
+          </motion.div>
         )}
 
         {/* Top actions */}
@@ -307,6 +458,13 @@ export default function StoryComposer({
 
         {/* Right toolbar */}
         <div className="absolute top-16 right-3 z-30 flex flex-col gap-2">
+          <button
+            onClick={() => setPanel((prev) => (prev === 'media' ? 'none' : 'media'))}
+            className="w-11 h-11 rounded-full bg-black/45 text-white flex items-center justify-center"
+            title="Mover e zoom da mídia"
+          >
+            <Move className="w-5 h-5" />
+          </button>
           <button
             onClick={onSelectMedia}
             className="w-11 h-11 rounded-full bg-black/45 text-white flex items-center justify-center"
@@ -366,6 +524,35 @@ export default function StoryComposer({
               exit={{ y: 260, opacity: 0 }}
               className="absolute bottom-0 left-0 right-0 z-40 bg-[#111827]/95 backdrop-blur-md rounded-t-3xl p-4 border-t border-white/10"
             >
+              {panel === 'media' && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-white text-sm font-black uppercase tracking-wider">Mídia (arrastar e zoom)</h4>
+                    <button onClick={() => setPanel('none')} className="text-white/70">
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <p className="text-white/70 text-xs">Arraste a foto/vídeo na tela e ajuste o zoom:</p>
+                  <input
+                    type="range"
+                    min={1}
+                    max={2.5}
+                    step={0.01}
+                    value={mediaTransform.scale}
+                    onChange={(e) =>
+                      setMediaTransform((prev) => ({ ...prev, scale: Number(e.target.value) }))
+                    }
+                    className="w-full"
+                  />
+                  <button
+                    onClick={() => setMediaTransform({ x: 0, y: 0, scale: 1 })}
+                    className="px-3 py-1.5 rounded-full bg-white/10 text-white text-xs font-semibold"
+                  >
+                    Resetar posição/zoom
+                  </button>
+                </div>
+              )}
+
               {panel === 'text' && (
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
@@ -405,6 +592,20 @@ export default function StoryComposer({
                       </button>
                     ))}
                   </div>
+                  <div>
+                    <label className="text-white/70 text-xs">Tamanho do texto</label>
+                    <input
+                      type="range"
+                      min={0.7}
+                      max={2.2}
+                      step={0.01}
+                      value={captionTransform.scale}
+                      onChange={(e) =>
+                        setCaptionTransform((prev) => ({ ...prev, scale: Number(e.target.value) }))
+                      }
+                      className="w-full"
+                    />
+                  </div>
                 </div>
               )}
 
@@ -427,18 +628,27 @@ export default function StoryComposer({
                       </button>
                     ))}
                   </div>
-                  {stickers.length > 0 && (
-                    <div className="flex flex-wrap gap-2">
-                      {stickers.map((sticker) => (
-                        <button
-                          key={sticker.id}
-                          onClick={() => setStickers((prev) => prev.filter((item) => item.id !== sticker.id))}
-                          className="px-2 py-1 rounded-full bg-white/10 text-white text-xs flex items-center gap-1"
-                        >
-                          {sticker.label}
-                          <X className="w-3 h-3" />
-                        </button>
-                      ))}
+                  {selectedSticker && (
+                    <div className="space-y-2">
+                      <label className="text-white/70 text-xs">Tamanho do sticker selecionado</label>
+                      <input
+                        type="range"
+                        min={0.6}
+                        max={2.4}
+                        step={0.01}
+                        value={selectedSticker.scale || 1}
+                        onChange={(e) => updateSelectedStickerScale(Number(e.target.value))}
+                        className="w-full"
+                      />
+                      <button
+                        onClick={() => {
+                          setStickers((prev) => prev.filter((item) => item.id !== selectedSticker.id));
+                          setSelectedStickerId(null);
+                        }}
+                        className="px-3 py-1.5 rounded-full bg-red-500/20 text-red-200 text-xs font-semibold"
+                      >
+                        Remover sticker selecionado
+                      </button>
                     </div>
                   )}
                 </div>
@@ -512,16 +722,51 @@ export default function StoryComposer({
                       className="w-full rounded-xl bg-white/10 border border-white/20 text-white placeholder:text-white/60 py-2.5 pl-9 pr-3 text-sm focus:outline-none"
                     />
                   </div>
+
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setMusicDisplayMode('album')}
+                      className={`px-3 py-1.5 rounded-full text-xs font-bold ${
+                        musicDisplayMode === 'album' ? 'bg-white text-slate-900' : 'bg-white/10 text-white'
+                      }`}
+                    >
+                      Ícone do álbum
+                    </button>
+                    <button
+                      onClick={() => setMusicDisplayMode('lyrics')}
+                      className={`px-3 py-1.5 rounded-full text-xs font-bold ${
+                        musicDisplayMode === 'lyrics' ? 'bg-white text-slate-900' : 'bg-white/10 text-white'
+                      }`}
+                    >
+                      Letra passando
+                    </button>
+                  </div>
+
+                  {musicDisplayMode === 'lyrics' && (
+                    <textarea
+                      value={lyricsText}
+                      onChange={(e) => setLyricsText(e.target.value)}
+                      placeholder="Texto da letra/trecho que vai passar..."
+                      rows={2}
+                      className="w-full rounded-xl bg-white/10 border border-white/20 text-white placeholder:text-white/60 p-3 text-sm focus:outline-none"
+                    />
+                  )}
+
                   <div className="max-h-44 overflow-y-auto space-y-1">
                     {musicLoading && <p className="text-white/70 text-xs">A pesquisar...</p>}
                     {musicResults.map((track) => (
-                      <button
+                      <div
                         key={track.trackId}
-                        onClick={() => setSelectedMusic(track)}
-                        className={`w-full flex items-center gap-3 text-left rounded-lg p-2 ${
+                        className={`w-full flex items-center gap-3 rounded-lg p-2 ${
                           selectedMusic?.trackId === track.trackId ? 'bg-white/20' : 'hover:bg-white/10'
                         }`}
                       >
+                        <button
+                          onClick={() => toggleTrackPreview(track)}
+                          className="w-9 h-9 rounded-full bg-black/40 border border-white/20 text-white flex items-center justify-center shrink-0"
+                        >
+                          {playingTrackId === track.trackId ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                        </button>
                         {track.artworkUrl100 ? (
                           <img src={track.artworkUrl100} alt={track.trackName} className="w-10 h-10 rounded-md object-cover" />
                         ) : (
@@ -529,12 +774,15 @@ export default function StoryComposer({
                             <Music2 className="w-4 h-4 text-white/70" />
                           </div>
                         )}
-                        <div className="min-w-0 flex-1">
+                        <button
+                          onClick={() => setSelectedMusic(track)}
+                          className="min-w-0 flex-1 text-left"
+                        >
                           <p className="text-white text-xs font-semibold truncate">{track.trackName}</p>
                           <p className="text-white/70 text-[11px] truncate">{track.artistName}</p>
-                        </div>
-                        {selectedMusic?.trackId === track.trackId && <Check className="w-4 h-4 text-white" />}
-                      </button>
+                        </button>
+                        {selectedMusic?.trackId === track.trackId && <Check className="w-4 h-4 text-white shrink-0" />}
+                      </div>
                     ))}
                   </div>
                 </div>

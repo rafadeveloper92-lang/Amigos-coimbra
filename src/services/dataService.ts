@@ -59,8 +59,16 @@ export const dataService = {
       music_artist: story.music_artist || null,
       music_cover_url: story.music_cover_url || null,
       music_preview_url: story.music_preview_url || null,
+      music_display_mode: story.music_display_mode || null,
+      lyrics_text: story.lyrics_text || null,
       mention_tags: story.mention_tags || null,
       stickers: story.stickers || null,
+      media_scale: story.media_scale || null,
+      media_x: story.media_x || null,
+      media_y: story.media_y || null,
+      caption_x: story.caption_x || null,
+      caption_y: story.caption_y || null,
+      caption_scale: story.caption_scale || null,
     };
 
     const { data, error } = await supabase

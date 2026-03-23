@@ -118,8 +118,16 @@ export default function StoriesBar() {
         music_artist: payload.music?.artist,
         music_cover_url: payload.music?.coverUrl,
         music_preview_url: payload.music?.previewUrl,
+        music_display_mode: payload.musicDisplayMode,
+        lyrics_text: payload.lyricsText,
         mention_tags: payload.mentionTags,
         stickers: payload.stickers,
+        media_scale: payload.mediaScale,
+        media_x: payload.mediaX,
+        media_y: payload.mediaY,
+        caption_x: payload.captionX,
+        caption_y: payload.captionY,
+        caption_scale: payload.captionScale,
       });
       await fetchStories();
       setShowComposer(false);
