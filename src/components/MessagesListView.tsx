@@ -24,6 +24,25 @@ export default function MessagesListView({ onSelectConversation }: MessagesListV
     return diffInMinutes >= 0 && diffInMinutes <= ONLINE_THRESHOLD_MINUTES;
   };
 
+  const getPresenceLabel = (updatedAt?: string) => {
+    if (!updatedAt) return 'Visto há algum tempo';
+    const lastSeen = new Date(updatedAt);
+    if (Number.isNaN(lastSeen.getTime())) return 'Visto há algum tempo';
+
+    const now = new Date();
+    const diffMs = now.getTime() - lastSeen.getTime();
+    if (diffMs < 0) return 'Visto há alguns instantes';
+
+    const diffMinutes = Math.floor(diffMs / (1000 * 60));
+    if (diffMinutes <= ONLINE_THRESHOLD_MINUTES) return 'Online agora';
+    if (diffMinutes < 60) return `Visto há ${diffMinutes} min`;
+
+    const diffHours = Math.floor(diffMinutes / 60);
+    if (diffHours < 24) return `Visto há ${diffHours} h`;
+
+    return `Visto em ${lastSeen.toLocaleDateString('pt-BR')}`;
+  };
+
   const fetchConversations = async () => {
     if (!user) return;
     try {
@@ -124,6 +143,7 @@ export default function MessagesListView({ onSelectConversation }: MessagesListV
           ) : (
             conversations.map((conv) => {
               const isOnline = isRecentlyOnline(conv.profile?.updated_at);
+              const presenceLabel = getPresenceLabel(conv.profile?.updated_at);
               return (
                 <button
                   key={conv.otherId}
@@ -150,6 +170,9 @@ export default function MessagesListView({ onSelectConversation }: MessagesListV
                         {new Date(conv.timestamp).toLocaleDateString()}
                       </span>
                     </div>
+                    <p className={`text-[11px] font-medium mb-0.5 ${isOnline ? 'text-emerald-600' : 'text-slate-400'}`}>
+                      {presenceLabel}
+                    </p>
                     <p className="text-xs text-slate-500 truncate">
                       {conv.isMe ? 'Você: ' : ''}{getConversationPreviewText(conv.lastMessage || '')}
                     </p>
