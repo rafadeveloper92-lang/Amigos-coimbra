@@ -12,6 +12,7 @@ export default function StoriesBar() {
   const [currentUser, setCurrentUser] = useState<Profile | null>(null);
   const [isViewerOpen, setIsViewerOpen] = useState(false);
   const [selectedUserStories, setSelectedUserStories] = useState<Story[]>([]);
+  const [viewerInitialIndex, setViewerInitialIndex] = useState(0);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [showComposer, setShowComposer] = useState(false);
@@ -114,6 +115,9 @@ export default function StoriesBar() {
         text_color: payload.textColor,
         text_font: payload.textFont,
         location_name: payload.locationName,
+        location_x: payload.locationX,
+        location_y: payload.locationY,
+        location_scale: payload.locationScale,
         music_title: payload.music?.title,
         music_artist: payload.music?.artist,
         music_cover_url: payload.music?.coverUrl,
@@ -159,6 +163,12 @@ export default function StoriesBar() {
     return acc;
   }, {} as Record<string, Story[]>);
 
+  (Object.values(groupedStories) as Story[][]).forEach((userStories) => {
+    userStories.sort(
+      (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    );
+  });
+
   const usersWithStories = (Object.values(groupedStories) as Story[][]).sort((a, b) => {
     // Current user first
     if (currentUser && a[0].user_id === currentUser.id) return -1;
@@ -168,6 +178,7 @@ export default function StoriesBar() {
 
   const openViewer = (userStories: Story[]) => {
     setSelectedUserStories(userStories);
+    setViewerInitialIndex(Math.max(0, userStories.length - 1));
     setIsViewerOpen(true);
   };
 
@@ -280,6 +291,7 @@ export default function StoriesBar() {
         {isViewerOpen && (
           <StoryViewer 
             stories={selectedUserStories} 
+            initialIndex={viewerInitialIndex}
             onClose={() => setIsViewerOpen(false)} 
           />
         )}

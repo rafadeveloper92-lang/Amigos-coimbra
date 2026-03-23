@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion } from 'motion/react';
-import { X, ChevronLeft, ChevronRight, MoreVertical, Trash2, MapPin, Music, Play, Pause } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, MoreVertical, Trash2, MapPin, Music, Play, Pause, Heart, MessageCircle, Send, Star } from 'lucide-react';
 import { Story } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { dataService } from '../services/dataService';
@@ -9,13 +9,23 @@ import { ptBR } from 'date-fns/locale';
 
 interface StoryViewerProps {
   stories: Story[];
+  initialIndex?: number;
   onClose: () => void;
 }
 
-export default function StoryViewer({ stories, onClose }: StoryViewerProps) {
+interface FavoriteMusicTrack {
+  trackName: string;
+  artistName?: string;
+  artworkUrl100?: string;
+  previewUrl?: string;
+}
+
+export default function StoryViewer({ stories, initialIndex = 0, onClose }: StoryViewerProps) {
   const { user: authUser } = useAuth();
   const [localStories, setLocalStories] = useState<Story[]>(stories);
-  const [currentIndex, setCurrentIndex] = useState(0);
+  const [currentIndex, setCurrentIndex] = useState(
+    stories.length > 0 ? Math.min(initialIndex, stories.length - 1) : 0
+  );
   const [progress, setProgress] = useState(0);
   const duration = 25000; // 25 seconds por story
   const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -28,6 +38,34 @@ export default function StoryViewer({ stories, onClose }: StoryViewerProps) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [isMusicPlaying, setIsMusicPlaying] = useState(false);
   const [nowTick, setNowTick] = useState(Date.now());
+  const [likedStories, setLikedStories] = useState<Record<string, boolean>>({});
+  const [likeCounts, setLikeCounts] = useState<Record<string, number>>({});
+  const [commentCounts, setCommentCounts] = useState<Record<string, number>>({});
+  const [showComments, setShowComments] = useState(false);
+  const [commentsByStory, setCommentsByStory] = useState<Record<string, string[]>>({});
+  const [commentInput, setCommentInput] = useState('');
+  const [messageInput, setMessageInput] = useState('');
+  const [favoriteTracks, setFavoriteTracks] = useState<FavoriteMusicTrack[]>([]);
+
+  const getInteractionKey = (suffix: string) =>
+    `story_interactions_${authUser?.id || 'guest'}_${suffix}`;
+  const getFavoriteMusicKey = () =>
+    `story_music_favorites_${authUser?.id || 'guest'}`;
+
+  const readJson = <T,>(key: string, fallback: T): T => {
+    if (typeof window === 'undefined') return fallback;
+    try {
+      const raw = localStorage.getItem(key);
+      return raw ? (JSON.parse(raw) as T) : fallback;
+    } catch {
+      return fallback;
+    }
+  };
+
+  const writeJson = <T,>(key: string, value: T) => {
+    if (typeof window === 'undefined') return;
+    localStorage.setItem(key, JSON.stringify(value));
+  };
 
   const currentStory = localStories[currentIndex];
   const user = currentStory?.profile;
@@ -35,11 +73,11 @@ export default function StoryViewer({ stories, onClose }: StoryViewerProps) {
 
   useEffect(() => {
     setLocalStories(stories);
-    setCurrentIndex(0);
+    setCurrentIndex(stories.length > 0 ? Math.min(initialIndex, stories.length - 1) : 0);
     setProgress(0);
     setShowMenu(false);
     setDeleteError(null);
-  }, [stories]);
+  }, [stories, initialIndex]);
 
   useEffect(() => {
     if (localStories.length === 0) {
@@ -51,6 +89,14 @@ export default function StoryViewer({ stories, onClose }: StoryViewerProps) {
     const interval = setInterval(() => setNowTick(Date.now()), 30000);
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    setLikedStories(readJson(getInteractionKey('liked'), {}));
+    setLikeCounts(readJson(getInteractionKey('likes_count'), {}));
+    setCommentCounts(readJson(getInteractionKey('comments_count'), {}));
+    setCommentsByStory(readJson(getInteractionKey('comments'), {}));
+    setFavoriteTracks(readJson(getFavoriteMusicKey(), []));
+  }, [authUser?.id]);
 
   useEffect(() => {
     if (!audioRef.current) return;
@@ -71,6 +117,12 @@ export default function StoryViewer({ stories, onClose }: StoryViewerProps) {
       setIsMusicPlaying(false);
     });
   }, [currentStory?.id, currentStory?.music_preview_url]);
+
+  useEffect(() => {
+    setShowComments(false);
+    setCommentInput('');
+    setMessageInput('');
+  }, [currentStory?.id]);
 
   useEffect(() => {
     return () => {
@@ -189,6 +241,13 @@ export default function StoryViewer({ stories, onClose }: StoryViewerProps) {
   const storyTimeAgo = currentStory.created_at
     ? formatDistanceToNow(new Date(currentStory.created_at), { addSuffix: true, locale: ptBR })
     : 'agora';
+  const isFavoriteMusic = currentStory.music_title
+    ? favoriteTracks.some(
+        (track) =>
+          track.trackName === currentStory.music_title &&
+          (track.artistName || '') === (currentStory.music_artist || '')
+      )
+    : false;
   void nowTick;
 
   const toggleMusic = async () => {
@@ -204,6 +263,65 @@ export default function StoryViewer({ stories, onClose }: StoryViewerProps) {
     } catch {
       setIsMusicPlaying(false);
     }
+  };
+
+  const storyId = currentStory.id;
+  const isLiked = !!likedStories[storyId];
+  const likesCount = likeCounts[storyId] || 0;
+  const comments = commentsByStory[storyId] || [];
+  const commentsCount = commentCounts[storyId] ?? comments.length;
+
+  const handleToggleLike = () => {
+    const nextLiked = !isLiked;
+    const nextLikedStories = { ...likedStories, [storyId]: nextLiked };
+    const nextCount = Math.max(0, (likeCounts[storyId] || 0) + (nextLiked ? 1 : -1));
+    const nextLikeCounts = { ...likeCounts, [storyId]: nextCount };
+    setLikedStories(nextLikedStories);
+    setLikeCounts(nextLikeCounts);
+    writeJson(getInteractionKey('liked'), nextLikedStories);
+    writeJson(getInteractionKey('likes_count'), nextLikeCounts);
+  };
+
+  const handleAddComment = () => {
+    const content = commentInput.trim();
+    if (!content) return;
+    const nextComments = [...comments, content];
+    const nextCommentsByStory = { ...commentsByStory, [storyId]: nextComments };
+    const nextCommentCounts = { ...commentCounts, [storyId]: nextComments.length };
+    setCommentsByStory(nextCommentsByStory);
+    setCommentCounts(nextCommentCounts);
+    setCommentInput('');
+    writeJson(getInteractionKey('comments'), nextCommentsByStory);
+    writeJson(getInteractionKey('comments_count'), nextCommentCounts);
+  };
+
+  const handleSendDirectMessage = async () => {
+    const content = messageInput.trim();
+    if (!content || !authUser?.id || !currentStory.user_id || currentStory.user_id === authUser.id) return;
+    await dataService.sendDirectMessage(authUser.id, currentStory.user_id, content);
+    setMessageInput('');
+  };
+
+  const handleSaveFavoriteMusic = () => {
+    if (!currentStory.music_title) return;
+    const current = readJson<FavoriteMusicTrack[]>(getFavoriteMusicKey(), []);
+    const exists = current.some(
+      (track) =>
+        track.trackName === currentStory.music_title &&
+        (track.artistName || '') === (currentStory.music_artist || '')
+    );
+    if (exists) return;
+    const next = [
+      {
+        trackName: currentStory.music_title,
+        artistName: currentStory.music_artist,
+        artworkUrl100: currentStory.music_cover_url,
+        previewUrl: currentStory.music_preview_url,
+      },
+      ...current,
+    ].slice(0, 60);
+    setFavoriteTracks(next);
+    writeJson(getFavoriteMusicKey(), next);
   };
 
   return (
@@ -283,20 +401,22 @@ export default function StoryViewer({ stories, onClose }: StoryViewerProps) {
 
         {/* Metadata */}
         {currentStory.location_name && (
-          <div className="absolute top-24 left-4 right-4 z-20 flex flex-wrap gap-2 pointer-events-none">
-            {currentStory.location_name && (
-              <div className="px-3 py-1 rounded-full bg-black/50 text-white text-xs font-semibold flex items-center gap-1">
-                <MapPin className="w-3.5 h-3.5" />
-                {currentStory.location_name}
-              </div>
-            )}
+          <div
+            className="absolute left-1/2 top-1/2 z-20 pointer-events-none"
+            style={{
+              transform: `translate(-50%, -50%) translate(${currentStory.location_x || 0}px, ${currentStory.location_y || -320}px) scale(${currentStory.location_scale || 1})`,
+            }}
+          >
+            <div className="px-3 py-1 rounded-full bg-black/50 text-white text-xs font-semibold flex items-center gap-1">
+              <MapPin className="w-3.5 h-3.5" />
+              {currentStory.location_name}
+            </div>
           </div>
         )}
 
         {currentStory.music_title && currentStory.music_display_mode !== 'lyrics' && (
-          <button
-            onClick={toggleMusic}
-            className="absolute left-1/2 top-1/2 z-20 px-3 py-1 rounded-full bg-black/50 text-white text-xs font-semibold flex items-center gap-1 max-w-[280px]"
+          <div
+            className="absolute left-1/2 top-1/2 z-20 px-3 py-1 rounded-full bg-black/50 text-white text-xs font-semibold flex items-center gap-1 max-w-[320px]"
             style={{
               transform: `translate(-50%, -50%) translate(${currentStory.music_x || 0}px, ${currentStory.music_y || -260}px) scale(${currentStory.music_scale || 1})`,
               transformOrigin: 'center center',
@@ -311,14 +431,19 @@ export default function StoryViewer({ stories, onClose }: StoryViewerProps) {
             ) : (
               <Music className="w-3.5 h-3.5" />
             )}
-            <span className="truncate">
+            <button onClick={toggleMusic} className="truncate text-left">
               {currentStory.music_title}
               {currentStory.music_artist ? ` - ${currentStory.music_artist}` : ''}
-            </span>
+            </button>
             {currentStory.music_preview_url && (
-              <span className="ml-1">{isMusicPlaying ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}</span>
+              <button onClick={toggleMusic} className="ml-1">
+                {isMusicPlaying ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
+              </button>
             )}
-          </button>
+            <button onClick={handleSaveFavoriteMusic} title="Salvar música favorita" className="ml-1">
+              <Star className={`w-3.5 h-3.5 ${isFavoriteMusic ? 'fill-current text-amber-300' : 'text-white'}`} />
+            </button>
+          </div>
         )}
 
         {currentStory.music_title && currentStory.music_display_mode === 'lyrics' && (
@@ -444,14 +569,74 @@ export default function StoryViewer({ stories, onClose }: StoryViewerProps) {
           </div>
         )}
 
-        {/* Footer / Reply */}
-        <div className="absolute bottom-6 left-4 right-4 z-20 flex gap-3">
-          <input 
-            type="text" 
-            placeholder="Enviar mensagem..." 
-            className="flex-1 bg-transparent border border-white/30 rounded-full px-4 py-2 text-white text-sm placeholder:text-white/50 focus:outline-none focus:border-white transition-colors"
-          />
+        {/* Footer / Actions */}
+        <div className="absolute bottom-6 left-4 right-4 z-20 flex items-center gap-2">
+          <div className="flex-1 flex items-center gap-2 bg-black/40 border border-white/30 rounded-full px-3 py-2">
+            <input
+              type="text"
+              value={messageInput}
+              onChange={(e) => setMessageInput(e.target.value)}
+              placeholder="Enviar mensagem..."
+              className="flex-1 bg-transparent text-white text-sm placeholder:text-white/60 focus:outline-none"
+            />
+            <button
+              onClick={handleSendDirectMessage}
+              className="text-white hover:text-white/80"
+              title="Enviar no PV"
+            >
+              <Send className="w-4 h-4" />
+            </button>
+          </div>
+          <button
+            onClick={handleToggleLike}
+            className="p-2 rounded-full bg-black/40 text-white border border-white/20"
+            title="Curtir"
+          >
+            <Heart className={`w-5 h-5 ${isLiked ? 'fill-red-500 text-red-500' : ''}`} />
+          </button>
+          <button
+            onClick={() => setShowComments((prev) => !prev)}
+            className="p-2 rounded-full bg-black/40 text-white border border-white/20"
+            title="Comentários"
+          >
+            <MessageCircle className="w-5 h-5" />
+          </button>
         </div>
+
+        <div className="absolute bottom-0 left-4 right-4 z-20 text-[11px] text-white/80 flex items-center justify-between pb-1">
+          <span>{likesCount} curtidas</span>
+          <span>{commentsCount} comentários</span>
+        </div>
+
+        {showComments && (
+          <div className="absolute left-3 right-3 bottom-20 z-30 bg-black/70 border border-white/20 rounded-xl p-3">
+            <div className="max-h-32 overflow-y-auto space-y-1 mb-2">
+              {comments.length === 0 ? (
+                <p className="text-white/60 text-xs">Sem comentários ainda.</p>
+              ) : (
+                comments.map((comment, idx) => (
+                  <p key={`${storyId}-comment-${idx}`} className="text-white text-xs bg-white/10 rounded-md px-2 py-1">
+                    {comment}
+                  </p>
+                ))
+              )}
+            </div>
+            <div className="flex gap-2">
+              <input
+                value={commentInput}
+                onChange={(e) => setCommentInput(e.target.value)}
+                placeholder="Comentar..."
+                className="flex-1 bg-white/10 border border-white/20 rounded-full px-3 py-1.5 text-white text-xs placeholder:text-white/60 focus:outline-none"
+              />
+              <button
+                onClick={handleAddComment}
+                className="px-3 py-1.5 rounded-full bg-white text-slate-900 text-xs font-bold"
+              >
+                Enviar
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Desktop Navigation Buttons */}

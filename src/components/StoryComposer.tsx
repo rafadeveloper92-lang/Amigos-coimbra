@@ -15,9 +15,12 @@ import {
   Play,
   Pause,
   Move,
+  Navigation,
+  Star,
 } from 'lucide-react';
 import { supabase } from '../services/supabaseClient';
 import { StorySticker } from '../types';
+import { useAuth } from '../contexts/AuthContext';
 
 type ComposerPanel = 'none' | 'media' | 'text' | 'stickers' | 'mentions' | 'music' | 'location';
 type MusicDisplayMode = 'album' | 'lyrics';
@@ -28,6 +31,20 @@ interface MusicTrack {
   artistName: string;
   artworkUrl100?: string;
   previewUrl?: string;
+}
+
+interface MentionProfile {
+  username: string;
+  first_name?: string;
+  last_name?: string;
+  avatar_url?: string;
+}
+
+interface LocationSuggestion {
+  id: string;
+  label: string;
+  lat: number;
+  lon: number;
 }
 
 interface OverlayTransform {
@@ -52,6 +69,9 @@ export interface StoryComposerPayload {
   textColor?: string;
   textFont?: string;
   locationName?: string;
+  locationX?: number;
+  locationY?: number;
+  locationScale?: number;
   mentionTags?: string[];
   stickers?: StorySticker[];
   musicDisplayMode?: MusicDisplayMode;
@@ -104,6 +124,27 @@ const STICKER_POSITIONS = [
   { x: 120, y: 140 },
 ];
 const TOP_MUSIC_TERMS = ['top brasil', 'viral brasil', 'pop hits', 'sertanejo', 'forró hits'];
+
+const getFavoritesStorageKey = (userId?: string) =>
+  `story_music_favorites_${userId || 'guest'}`;
+
+const readFavorites = (userId?: string): MusicTrack[] => {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(getFavoritesStorageKey(userId));
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed;
+  } catch {
+    return [];
+  }
+};
+
+const writeFavorites = (userId: string | undefined, tracks: MusicTrack[]) => {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(getFavoritesStorageKey(userId), JSON.stringify(tracks));
+};
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
@@ -309,13 +350,14 @@ export default function StoryComposer({
   onSelectMedia,
   onPublish,
 }: StoryComposerProps) {
+  const { user } = useAuth();
   const [panel, setPanel] = useState<ComposerPanel>('none');
   const [caption, setCaption] = useState('');
   const [textColor, setTextColor] = useState('#ffffff');
   const [textFont, setTextFont] = useState('inherit');
   const [locationName, setLocationName] = useState('');
   const [mentionQuery, setMentionQuery] = useState('');
-  const [mentionResults, setMentionResults] = useState<string[]>([]);
+  const [mentionResults, setMentionResults] = useState<MentionProfile[]>([]);
   const [mentionTags, setMentionTags] = useState<string[]>([]);
   const [stickers, setStickers] = useState<StorySticker[]>([]);
   const [selectedStickerId, setSelectedStickerId] = useState<string | null>(null);
@@ -330,6 +372,10 @@ export default function StoryComposer({
   const [captionTransform, setCaptionTransform] = useState<OverlayTransform>({ x: 0, y: 0, scale: 1 });
   const [mentionTransform, setMentionTransform] = useState<OverlayTransform>({ x: 0, y: -220, scale: 1 });
   const [musicTransform, setMusicTransform] = useState<OverlayTransform>({ x: 0, y: -260, scale: 1 });
+  const [locationTransform, setLocationTransform] = useState<OverlayTransform>({ x: 0, y: -320, scale: 1 });
+  const [locationSuggestions, setLocationSuggestions] = useState<LocationSuggestion[]>([]);
+  const [locationLoading, setLocationLoading] = useState(false);
+  const [favoriteTracks, setFavoriteTracks] = useState<MusicTrack[]>([]);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [playingTrackId, setPlayingTrackId] = useState<number | null>(null);
 
@@ -355,13 +401,17 @@ export default function StoryComposer({
     setCaptionTransform({ x: 0, y: 0, scale: 1 });
     setMentionTransform({ x: 0, y: -220, scale: 1 });
     setMusicTransform({ x: 0, y: -260, scale: 1 });
+    setLocationTransform({ x: 0, y: -320, scale: 1 });
+    setLocationSuggestions([]);
+    setLocationLoading(false);
+    setFavoriteTracks(readFavorites(user?.id));
 
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.src = '';
     }
     setPlayingTrackId(null);
-  }, [isOpen, file]);
+  }, [isOpen, file, user?.id]);
 
   useEffect(() => {
     return () => {
@@ -382,7 +432,7 @@ export default function StoryComposer({
     const timeout = setTimeout(async () => {
       const { data, error: mentionError } = await supabase
         .from('profiles')
-        .select('username')
+        .select('username, first_name, last_name, avatar_url')
         .ilike('username', `%${query}%`)
         .limit(8);
 
@@ -391,11 +441,10 @@ export default function StoryComposer({
         return;
       }
 
-      const usernames = (data || [])
-        .map((profile: any) => profile.username)
-        .filter(Boolean)
-        .filter((username: string) => !mentionTags.includes(username));
-      setMentionResults(usernames);
+      const profiles = (data || [])
+        .filter((profile: any) => !!profile.username)
+        .filter((profile: any) => !mentionTags.includes(profile.username));
+      setMentionResults(profiles as MentionProfile[]);
     }, 250);
 
     return () => clearTimeout(timeout);
@@ -478,6 +527,42 @@ export default function StoryComposer({
   }, [isOpen, panel, musicQuery, topTracks.length]);
 
   useEffect(() => {
+    if (!isOpen || panel !== 'location') return;
+    const query = locationName.trim();
+    if (query.length < 2) {
+      setLocationSuggestions([]);
+      return;
+    }
+
+    const timeout = setTimeout(async () => {
+      setLocationLoading(true);
+      try {
+        const response = await fetch(
+          `https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=8&q=${encodeURIComponent(query)}`
+        );
+        if (!response.ok) {
+          setLocationSuggestions([]);
+          return;
+        }
+        const payload = await response.json();
+        const suggestions = (payload || []).map((item: any) => ({
+          id: item.place_id?.toString() || `${item.lat}-${item.lon}`,
+          label: item.display_name,
+          lat: Number(item.lat),
+          lon: Number(item.lon),
+        }));
+        setLocationSuggestions(suggestions);
+      } catch {
+        setLocationSuggestions([]);
+      } finally {
+        setLocationLoading(false);
+      }
+    }, 350);
+
+    return () => clearTimeout(timeout);
+  }, [isOpen, panel, locationName]);
+
+  useEffect(() => {
     if (!selectedMusic) return;
     if (!lyricsText.trim()) {
       setLyricsText(`${selectedMusic.trackName} - ${selectedMusic.artistName}`);
@@ -512,12 +597,54 @@ export default function StoryComposer({
     }
   };
 
+  const handleSaveFavoriteTrack = (track: MusicTrack) => {
+    setFavoriteTracks((prev) => {
+      const exists = prev.some((item) => item.trackId === track.trackId);
+      if (exists) return prev;
+      const next = [track, ...prev].slice(0, 40);
+      writeFavorites(user?.id, next);
+      return next;
+    });
+  };
+
+  const handleRemoveFavoriteTrack = (trackId: number) => {
+    setFavoriteTracks((prev) => {
+      const next = prev.filter((item) => item.trackId !== trackId);
+      writeFavorites(user?.id, next);
+      return next;
+    });
+  };
+
   const handleAddMention = (username: string) => {
     const normalized = username.replace('@', '').trim();
     if (!normalized || mentionTags.includes(normalized)) return;
     setMentionTags((prev) => [...prev, normalized]);
     setMentionQuery('');
     setMentionResults([]);
+  };
+
+  const handleUseCurrentLocation = async () => {
+    if (!navigator.geolocation) return;
+    setLocationLoading(true);
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        try {
+          const { latitude, longitude } = position.coords;
+          const response = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}`
+          );
+          if (!response.ok) return;
+          const payload = await response.json();
+          if (payload?.display_name) {
+            setLocationName(payload.display_name);
+          }
+        } finally {
+          setLocationLoading(false);
+        }
+      },
+      () => setLocationLoading(false),
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
   };
 
   const handleAddSticker = (label: string) => {
@@ -543,6 +670,9 @@ export default function StoryComposer({
       textColor: textColor || undefined,
       textFont: textFont || undefined,
       locationName: locationName.trim() || undefined,
+      locationX: locationTransform.x,
+      locationY: locationTransform.y,
+      locationScale: locationTransform.scale,
       mentionTags: mentionTags.length > 0 ? mentionTags : undefined,
       stickers: stickers.length > 0 ? stickers : undefined,
       musicDisplayMode,
@@ -655,10 +785,18 @@ export default function StoryComposer({
         )}
 
         {locationName && (
-          <div className="absolute top-36 left-4 z-20 bg-black/55 text-white rounded-full px-3 py-1.5 text-xs font-semibold flex items-center gap-2">
-            <MapPin className="w-3.5 h-3.5" />
-            <span className="truncate max-w-[200px]">{locationName}</span>
-          </div>
+          <TransformableItem
+            transform={locationTransform}
+            onChange={setLocationTransform}
+            className="z-20"
+            minScale={0.7}
+            maxScale={2.4}
+          >
+            <div className="bg-black/55 text-white rounded-full px-3 py-1.5 text-xs font-semibold flex items-center gap-2 max-w-[70vw]">
+              <MapPin className="w-3.5 h-3.5 shrink-0" />
+              <span className="truncate">{locationName}</span>
+            </div>
+          </TransformableItem>
         )}
 
         {mentionTags.length > 0 && (
@@ -925,13 +1063,23 @@ export default function StoryComposer({
                     />
                   </div>
                   <div className="max-h-36 overflow-y-auto space-y-1">
-                    {mentionResults.map((username) => (
+                    {mentionResults.map((profile) => (
                       <button
-                        key={username}
-                        onClick={() => handleAddMention(username)}
-                        className="w-full text-left text-sm text-white px-2 py-1.5 rounded-lg hover:bg-white/10"
+                        key={profile.username}
+                        onClick={() => handleAddMention(profile.username)}
+                        className="w-full text-left text-sm text-white px-2 py-1.5 rounded-lg hover:bg-white/10 flex items-center gap-2"
                       >
-                        @{username}
+                        <img
+                          src={profile.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.username)}`}
+                          alt={profile.username}
+                          className="w-8 h-8 rounded-full object-cover border border-white/20"
+                        />
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold truncate">@{profile.username}</p>
+                          <p className="text-[11px] text-white/70 truncate">
+                            {[profile.first_name, profile.last_name].filter(Boolean).join(' ').trim() || 'Usuário'}
+                          </p>
+                        </div>
                       </button>
                     ))}
                   </div>
@@ -1007,6 +1155,48 @@ export default function StoryComposer({
                     <p className="text-white/60 text-[11px]">toque em ▶ para preview</p>
                   </div>
 
+                  {favoriteTracks.length > 0 && musicQuery.trim().length < 2 && (
+                    <div className="space-y-1">
+                      <p className="text-white/70 text-xs font-semibold">Favoritas</p>
+                      <div className="max-h-32 overflow-y-auto space-y-1">
+                        {favoriteTracks.slice(0, 8).map((track) => (
+                          <div
+                            key={`fav-${track.trackId}`}
+                            className="w-full flex items-center gap-3 rounded-lg p-2 bg-white/10"
+                          >
+                            <button
+                              onClick={() => toggleTrackPreview(track)}
+                              className="w-9 h-9 rounded-full bg-black/40 border border-white/20 text-white flex items-center justify-center shrink-0"
+                            >
+                              {playingTrackId === track.trackId ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                            </button>
+                            {track.artworkUrl100 ? (
+                              <img src={track.artworkUrl100} alt={track.trackName} className="w-10 h-10 rounded-md object-cover" />
+                            ) : (
+                              <div className="w-10 h-10 rounded-md bg-white/10 flex items-center justify-center">
+                                <Music2 className="w-4 h-4 text-white/70" />
+                              </div>
+                            )}
+                            <button
+                              onClick={() => handleSelectTrack(track)}
+                              className="min-w-0 flex-1 text-left"
+                            >
+                              <p className="text-white text-xs font-semibold truncate">{track.trackName}</p>
+                              <p className="text-white/70 text-[11px] truncate">{track.artistName}</p>
+                            </button>
+                            <button
+                              onClick={() => handleRemoveFavoriteTrack(track.trackId)}
+                              className="text-amber-300 hover:text-amber-200"
+                              title="Remover favorita"
+                            >
+                              <Star className="w-4 h-4 fill-current" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   <div className="max-h-44 overflow-y-auto space-y-1">
                     {musicLoading && <p className="text-white/70 text-xs">A pesquisar...</p>}
                     {tracksToDisplay.map((track) => (
@@ -1036,6 +1226,17 @@ export default function StoryComposer({
                           <p className="text-white text-xs font-semibold truncate">{track.trackName}</p>
                           <p className="text-white/70 text-[11px] truncate">{track.artistName}</p>
                         </button>
+                        <button
+                          onClick={() => handleSaveFavoriteTrack(track)}
+                          className="text-amber-300 hover:text-amber-200 shrink-0"
+                          title="Salvar favorita"
+                        >
+                          <Star
+                            className={`w-4 h-4 ${
+                              favoriteTracks.some((fav) => fav.trackId === track.trackId) ? 'fill-current' : ''
+                            }`}
+                          />
+                        </button>
                         {selectedMusic?.trackId === track.trackId && <Check className="w-4 h-4 text-white shrink-0" />}
                       </div>
                     ))}
@@ -1058,10 +1259,33 @@ export default function StoryComposer({
                     <input
                       value={locationName}
                       onChange={(e) => setLocationName(e.target.value)}
-                      placeholder="Ex: Coimbra, Portugal"
+                      placeholder="Pesquisar locais..."
                       className="w-full rounded-xl bg-white/10 border border-white/20 text-white placeholder:text-white/60 py-2.5 pl-9 pr-3 text-sm focus:outline-none"
                     />
                   </div>
+                  <button
+                    onClick={handleUseCurrentLocation}
+                    className="px-3 py-1.5 rounded-full bg-white/10 text-white text-xs font-semibold inline-flex items-center gap-1"
+                  >
+                    <Navigation className="w-3.5 h-3.5" />
+                    Usar minha localização atual
+                  </button>
+                  {locationLoading && <p className="text-white/70 text-xs">Buscando locais...</p>}
+                  <div className="max-h-40 overflow-y-auto space-y-1">
+                    {locationSuggestions.map((suggestion) => (
+                      <button
+                        key={suggestion.id}
+                        onClick={() => {
+                          setLocationName(suggestion.label);
+                          setLocationSuggestions([]);
+                        }}
+                        className="w-full text-left text-xs text-white px-2 py-2 rounded-lg hover:bg-white/10"
+                      >
+                        {suggestion.label}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-white/70 text-xs">Arraste/pinçe a localização na tela.</p>
                 </div>
               )}
             </motion.div>
