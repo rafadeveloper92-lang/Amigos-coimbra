@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, Send, User as UserIcon } from 'lucide-react';
+import { ArrowLeft, Play, Send, User as UserIcon } from 'lucide-react';
 import { dataService } from '../services/dataService';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../services/supabaseClient';
@@ -152,9 +152,10 @@ export default function DirectMessagesView({ targetUserId, onBack, onViewProfile
             const isMe = msg.sender_id === user?.id;
             const postShare = parsePostShareMessage(msg.content || '');
             const storyReply = parseStoryReplyMessage(msg.content || '');
+            const canOpenPost = !!onOpenPost && Number.isFinite(postShare?.postId);
             return (
               <div key={msg.id || `dm-${idx}`} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
-                <div className={`max-w-[80%] px-4 py-2.5 rounded-2xl ${
+                <div className={`max-w-[84%] px-4 py-2.5 rounded-2xl ${
                   isMe 
                     ? 'bg-nexus-blue text-white rounded-tr-sm' 
                     : 'bg-white border border-slate-200 text-slate-800 rounded-tl-sm shadow-sm'
@@ -162,7 +163,7 @@ export default function DirectMessagesView({ targetUserId, onBack, onViewProfile
                   {postShare ? (
                     <div className="space-y-2">
                       <div
-                        className={`rounded-xl overflow-hidden border ${isMe ? 'border-white/25' : 'border-slate-200'} bg-black/10 cursor-pointer`}
+                        className={`group rounded-2xl overflow-hidden border ${isMe ? 'border-white/25' : 'border-slate-200'} bg-black/10 transition-transform ${canOpenPost ? 'cursor-pointer active:scale-[0.99]' : ''}`}
                         onClick={() => {
                           if (onOpenPost && Number.isFinite(postShare.postId)) {
                             onOpenPost(postShare.postId);
@@ -170,14 +171,14 @@ export default function DirectMessagesView({ targetUserId, onBack, onViewProfile
                         }}
                       >
                         {postShare.mediaUrl ? (
-                          <div className="relative w-full h-36 bg-black">
+                          <div className="relative w-full h-44 bg-black">
                             {postShare.mediaType === 'video' ? (
                               <video
                                 src={postShare.mediaUrl}
                                 muted
                                 playsInline
                                 preload="metadata"
-                                className="w-full h-full object-cover opacity-90"
+                                className="w-full h-full object-cover opacity-95"
                               />
                             ) : (
                               <img
@@ -186,15 +187,39 @@ export default function DirectMessagesView({ targetUserId, onBack, onViewProfile
                                 className="w-full h-full object-cover"
                               />
                             )}
-                            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-2">
-                              <p className="text-[10px] font-bold text-white tracking-wide">
-                                {postShare.mediaType === 'video' ? 'Vídeo compartilhado' : 'Publicação compartilhada'}
-                                {postShare.ownerUsername ? ` • @${postShare.ownerUsername.replace(/^@/, '')}` : ''}
+                            <div className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-black/55 border border-white/20 px-2 py-1 text-[10px] font-extrabold text-white tracking-wide">
+                              {postShare.mediaType === 'video' ? (
+                                <>
+                                  <Play className="w-3 h-3 fill-white" />
+                                  VÍDEO
+                                </>
+                              ) : (
+                                'FOTO'
+                              )}
+                            </div>
+
+                            {postShare.mediaType === 'video' && (
+                              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                <div className="w-12 h-12 rounded-full bg-black/45 border border-white/35 flex items-center justify-center group-hover:scale-105 transition-transform">
+                                  <Play className="w-6 h-6 text-white fill-white ml-0.5" />
+                                </div>
+                              </div>
+                            )}
+
+                            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/45 to-transparent p-2.5">
+                              <p className="text-[10px] font-bold text-white/95 tracking-wide">
+                                Publicação compartilhada
                               </p>
+                              <p className="text-[11px] text-white font-semibold truncate">
+                                {postShare.ownerUsername ? `@${postShare.ownerUsername.replace(/^@/, '')}` : 'Comunidade'}
+                              </p>
+                              {canOpenPost && (
+                                <p className="text-[10px] text-white/80 mt-0.5">Toque para abrir</p>
+                              )}
                             </div>
                           </div>
                         ) : (
-                          <div className={`p-3 ${isMe ? 'bg-white/10' : 'bg-slate-50'}`}>
+                          <div className={`p-3 rounded-xl ${isMe ? 'bg-white/10' : 'bg-slate-50'}`}>
                             <p className={`text-xs font-semibold ${isMe ? 'text-white' : 'text-slate-700'}`}>
                               Publicação compartilhada
                               {postShare.ownerUsername ? ` de @${postShare.ownerUsername.replace(/^@/, '')}` : ''}
@@ -202,11 +227,13 @@ export default function DirectMessagesView({ targetUserId, onBack, onViewProfile
                           </div>
                         )}
                       </div>
-                      <p className="text-sm whitespace-pre-wrap break-words">{postShare.text}</p>
+                      <div className={`rounded-xl px-3 py-2 ${isMe ? 'bg-white/10' : 'bg-slate-50 border border-slate-200'}`}>
+                        <p className="text-sm whitespace-pre-wrap break-words">{postShare.text}</p>
+                      </div>
                       {onOpenPost && Number.isFinite(postShare.postId) && (
                         <button
                           onClick={() => onOpenPost(postShare.postId)}
-                          className={`text-[11px] font-bold underline underline-offset-2 ${
+                          className={`text-[11px] font-bold underline underline-offset-2 transition-colors ${
                             isMe ? 'text-white/90 hover:text-white' : 'text-nexus-blue hover:text-nexus-blue/80'
                           }`}
                         >
@@ -216,15 +243,15 @@ export default function DirectMessagesView({ targetUserId, onBack, onViewProfile
                     </div>
                   ) : storyReply ? (
                     <div className="space-y-2">
-                      <div className={`rounded-xl overflow-hidden border ${isMe ? 'border-white/25' : 'border-slate-200'} bg-black/10`}>
-                        <div className="relative w-full h-28 bg-black">
+                      <div className={`rounded-2xl overflow-hidden border ${isMe ? 'border-white/25' : 'border-slate-200'} bg-black/10`}>
+                        <div className="relative w-full h-32 bg-black">
                           {storyReply.mediaType === 'video' ? (
                             <video
                               src={storyReply.mediaUrl}
                               muted
                               playsInline
                               preload="metadata"
-                              className="w-full h-full object-cover opacity-85"
+                              className="w-full h-full object-cover opacity-90"
                             />
                           ) : (
                             <img
@@ -233,14 +260,19 @@ export default function DirectMessagesView({ targetUserId, onBack, onViewProfile
                               className="w-full h-full object-cover"
                             />
                           )}
-                          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-2">
+                          <div className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-black/55 border border-white/20 px-2 py-1 text-[10px] font-extrabold text-white tracking-wide">
+                            STORY
+                          </div>
+                          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-2.5">
                             <p className="text-[10px] font-bold text-white tracking-wide">
                               Respondeu ao story {storyReply.ownerUsername ? `de @${storyReply.ownerUsername.replace(/^@/, '')}` : ''}
                             </p>
                           </div>
                         </div>
                       </div>
-                      <p className="text-sm whitespace-pre-wrap break-words">{storyReply.text}</p>
+                      <div className={`rounded-xl px-3 py-2 ${isMe ? 'bg-white/10' : 'bg-slate-50 border border-slate-200'}`}>
+                        <p className="text-sm whitespace-pre-wrap break-words">{storyReply.text}</p>
+                      </div>
                     </div>
                   ) : (
                     <p className="text-sm whitespace-pre-wrap break-words">{msg.content}</p>
