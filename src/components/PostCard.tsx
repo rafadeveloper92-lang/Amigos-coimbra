@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { ThumbsUp, MessageCircle, Share2, MoreHorizontal, Send, Trash2, Flag, X, LogOut, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
 import { dataService } from '../services/dataService';
-import { Comment } from '../types';
+import { Comment, Friend } from '../types';
 import { supabase } from '../services/supabaseClient';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../contexts/AuthContext';
@@ -54,11 +54,16 @@ export default function PostCard({ id, userId, author, author_avatar, group, tim
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isVideoMuted, setIsVideoMuted] = useState(true);
   const [isVideoInView, setIsVideoInView] = useState(false);
+  const [showSendToFriendModal, setShowSendToFriendModal] = useState(false);
+  const [friends, setFriends] = useState<Friend[]>([]);
+  const [isLoadingFriends, setIsLoadingFriends] = useState(false);
+  const [sendingFriendId, setSendingFriendId] = useState<string | null>(null);
   const { user, profile } = useAuth();
   
   const optionsRef = useRef<HTMLDivElement>(null);
   const reactionTimeout = useRef<any>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const fullscreenVideoRef = useRef<HTMLVideoElement | null>(null);
   const mediaContainerRef = useRef<HTMLDivElement | null>(null);
 
   const getAvatarUrl = (url?: string, seed?: string) => {
@@ -103,6 +108,10 @@ export default function PostCard({ id, userId, author, author_avatar, group, tim
     if (!isVideoMedia) return;
     const video = videoRef.current;
     if (!video) return;
+    if (isFullscreen) {
+      video.pause();
+      return;
+    }
 
     if (isVideoInView) {
       video.play().catch(() => {
@@ -111,15 +120,39 @@ export default function PostCard({ id, userId, author, author_avatar, group, tim
       return;
     }
     video.pause();
-  }, [isVideoInView, isVideoMedia, image]);
+  }, [isVideoInView, isVideoMedia, image, isFullscreen]);
 
   useEffect(() => {
     return () => {
       if (videoRef.current) {
         videoRef.current.pause();
       }
+      if (fullscreenVideoRef.current) {
+        fullscreenVideoRef.current.pause();
+      }
     };
   }, []);
+
+  const fetchFriends = useCallback(async () => {
+    if (isLoadingFriends) return;
+    setIsLoadingFriends(true);
+    try {
+      const friendsData = await dataService.getFriends();
+      setFriends(friendsData || []);
+    } catch (error) {
+      console.error('Erro ao carregar amigos para compartilhamento:', error);
+      setFriends([]);
+    } finally {
+      setIsLoadingFriends(false);
+    }
+  }, [isLoadingFriends]);
+
+  const openSendToFriendModal = useCallback(async () => {
+    setShowSendToFriendModal(true);
+    if (friends.length === 0 && !isLoadingFriends) {
+      await fetchFriends();
+    }
+  }, [fetchFriends, friends.length, isLoadingFriends]);
 
   useEffect(() => {
     // Fetch initial comment count accurately
@@ -315,6 +348,38 @@ export default function PostCard({ id, userId, author, author_avatar, group, tim
     }
   };
 
+  const handleSendToFriend = async (friendIdRaw: string | number) => {
+    if (!user?.id) {
+      alert('Faça login para enviar este vídeo para amigos.');
+      return;
+    }
+    const friendId = String(friendIdRaw);
+    setSendingFriendId(friendId);
+    try {
+      const contentSnippet = content?.trim();
+      const messageParts = [
+        isVideoMedia
+          ? `🎬 ${author} compartilhou um vídeo no feed:`
+          : `📷 ${author} compartilhou uma publicação no feed:`,
+        contentSnippet ? `“${contentSnippet.length > 160 ? `${contentSnippet.slice(0, 157)}...` : contentSnippet}”` : '',
+        image ? image : '',
+      ].filter(Boolean);
+
+      const messagePayload = messageParts.join('\n');
+      const sent = await dataService.sendDirectMessage(user.id, friendId, messagePayload);
+      if (!sent) {
+        throw new Error('Falha ao enviar mensagem.');
+      }
+      setShowSendToFriendModal(false);
+      alert('Vídeo enviado para o amigo com sucesso!');
+    } catch (error) {
+      console.error('Erro ao enviar vídeo para amigo:', error);
+      alert('Não foi possível enviar agora. Tente novamente.');
+    } finally {
+      setSendingFriendId(null);
+    }
+  };
+
   const handleDelete = async () => {
     setIsDeleting(true);
     try {
@@ -477,11 +542,9 @@ export default function PostCard({ id, userId, author, author_avatar, group, tim
       {image && (
         <div 
           ref={isVideoMedia ? mediaContainerRef : undefined}
-          className={`w-full overflow-hidden relative ${isVideoMedia ? 'bg-black' : 'aspect-video cursor-pointer'}`}
+          className={`w-full overflow-hidden relative ${isVideoMedia ? 'bg-black cursor-pointer' : 'aspect-video cursor-pointer'}`}
           onClick={() => {
-            if (!isVideoMedia) {
-              setIsFullscreen(true);
-            }
+            setIsFullscreen(true);
           }}
         >
           {isVideoMedia ? (
@@ -606,6 +669,78 @@ export default function PostCard({ id, userId, author, author_avatar, group, tim
         )}
       </AnimatePresence>
 
+      {/* Fullscreen Video Modal */}
+      <AnimatePresence>
+        {isFullscreen && image && isVideoMedia && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[220] bg-black/95 flex flex-col items-center justify-center backdrop-blur-md"
+          >
+            <div className="absolute top-0 left-0 right-0 p-4 flex items-center justify-between z-[230] bg-gradient-to-b from-black/60 to-transparent">
+              <div className="flex items-center gap-4">
+                <button
+                  onClick={() => setIsFullscreen(false)}
+                  className="p-2 text-white hover:bg-white/10 rounded-full transition-colors"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+                <div className="text-white">
+                  <p className="text-sm font-bold">{author}</p>
+                  <p className="text-[10px] opacity-70">{time}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => openSendToFriendModal()}
+                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/15 border border-white/20 text-white text-xs font-bold"
+              >
+                <Send className="w-3.5 h-3.5" />
+                Enviar
+              </button>
+            </div>
+
+            <div className="w-full h-full flex items-center justify-center p-4">
+              <video
+                ref={fullscreenVideoRef}
+                src={image}
+                autoPlay
+                loop
+                playsInline
+                controls
+                muted={isVideoMuted}
+                className="w-full max-h-[86vh] object-contain rounded-xl"
+              />
+            </div>
+
+            <div className="absolute right-5 top-16 z-[230]">
+              <button
+                onClick={() => {
+                  const nextMuted = !isVideoMuted;
+                  setIsVideoMuted(nextMuted);
+                  if (fullscreenVideoRef.current) {
+                    fullscreenVideoRef.current.muted = nextMuted;
+                    if (!nextMuted) {
+                      void fullscreenVideoRef.current.play().catch(() => undefined);
+                    }
+                  }
+                  if (videoRef.current) {
+                    videoRef.current.muted = nextMuted;
+                  }
+                }}
+                className="px-2 py-1 rounded-full text-[11px] font-bold bg-black/55 text-white border border-white/25"
+              >
+                {isVideoMuted ? 'Som off' : 'Som on'}
+              </button>
+            </div>
+
+            <div className="absolute right-4 bottom-4 z-[230]">
+              <BrandWatermark compact handle={getPostHandle()} />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Stats */}
       <div className="px-4 py-2 flex items-center justify-between border-b border-slate-50">
         <div className="flex items-center gap-1">
@@ -680,6 +815,13 @@ export default function PostCard({ id, userId, author, author_avatar, group, tim
           <span>Comentar</span>
         </button>
         <button 
+          onClick={openSendToFriendModal}
+          className="flex-1 flex items-center justify-center gap-2 py-2 text-slate-500 hover:bg-slate-50 rounded-lg transition-colors text-xs font-bold"
+        >
+          <Send className="w-4 h-4" />
+          <span>Enviar</span>
+        </button>
+        <button 
           onClick={handleShare}
           className="flex-1 flex items-center justify-center gap-2 py-2 text-slate-500 hover:bg-slate-50 rounded-lg transition-colors text-xs font-bold"
         >
@@ -687,6 +829,84 @@ export default function PostCard({ id, userId, author, author_avatar, group, tim
           <span>Compartilhar</span>
         </button>
       </div>
+
+      {/* Send to friend modal */}
+      <AnimatePresence>
+        {showSendToFriendModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[240] bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center"
+          >
+            <motion.div
+              initial={{ opacity: 0, y: 20, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 16, scale: 0.98 }}
+              className="w-full sm:max-w-md bg-white rounded-t-3xl sm:rounded-2xl border border-slate-100 shadow-2xl max-h-[72vh] overflow-hidden"
+            >
+              <div className="p-4 border-b border-slate-100 flex items-center justify-between">
+                <h3 className="text-sm font-bold text-slate-900">Enviar para um amigo</h3>
+                <button
+                  onClick={() => setShowSendToFriendModal(false)}
+                  className="p-1.5 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="p-3 overflow-y-auto max-h-[56vh]">
+                {isLoadingFriends ? (
+                  <div className="py-10 flex items-center justify-center">
+                    <div className="w-6 h-6 border-2 border-nexus-blue/30 border-t-nexus-blue rounded-full animate-spin" />
+                  </div>
+                ) : friends.length === 0 ? (
+                  <p className="text-sm text-slate-500 text-center py-8">
+                    Nenhum amigo disponível para enviar no momento.
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {friends.map((friend) => {
+                      const friendId = String(friend.id);
+                      const isSending = sendingFriendId === friendId;
+                      return (
+                        <div
+                          key={friendId}
+                          className="flex items-center justify-between gap-3 p-2.5 rounded-xl border border-slate-100"
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <img
+                              src={friend.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${friendId}`}
+                              alt={friend.name}
+                              className="w-10 h-10 rounded-full object-cover"
+                            />
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold text-slate-900 truncate">{friend.name}</p>
+                              <p className="text-[11px] text-slate-400">{friend.status}</p>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => handleSendToFriend(friend.id)}
+                            disabled={!!sendingFriendId}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-nexus-blue text-white text-xs font-bold disabled:opacity-60"
+                          >
+                            {isSending ? (
+                              <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                            ) : (
+                              <Send className="w-3.5 h-3.5" />
+                            )}
+                            Enviar
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Comments Section */}
       {showComments && (
