@@ -17,15 +17,80 @@ export default function DirectMessagesView({ targetUserId, onBack, onViewProfile
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [targetProfile, setTargetProfile] = useState<any>(null);
+  const [, setPresenceTick] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const { user, profile } = useAuth();
+  const { user } = useAuth();
+  const ONLINE_THRESHOLD_MINUTES = 3;
+
+  const getPresenceMeta = (updatedAt?: string) => {
+    if (!updatedAt) {
+      return { isOnline: false, label: 'Visto há algum tempo' };
+    }
+
+    const lastSeen = new Date(updatedAt);
+    if (Number.isNaN(lastSeen.getTime())) {
+      return { isOnline: false, label: 'Visto há algum tempo' };
+    }
+
+    const now = new Date();
+    const diffMs = now.getTime() - lastSeen.getTime();
+    if (diffMs < 0) {
+      return { isOnline: false, label: 'Visto há alguns instantes' };
+    }
+
+    const diffMinutes = Math.floor(diffMs / (1000 * 60));
+    if (diffMinutes <= ONLINE_THRESHOLD_MINUTES) {
+      return { isOnline: true, label: 'Online agora' };
+    }
+    if (diffMinutes < 60) {
+      return { isOnline: false, label: `Visto há ${diffMinutes} min` };
+    }
+
+    const diffHours = Math.floor(diffMinutes / 60);
+    if (diffHours < 24) {
+      return { isOnline: false, label: `Visto há ${diffHours} h` };
+    }
+
+    return {
+      isOnline: false,
+      label: `Visto em ${lastSeen.toLocaleDateString('pt-BR')}`,
+    };
+  };
 
   useEffect(() => {
     const fetchTargetProfile = async () => {
       const p = await dataService.getUserProfile(targetUserId);
       setTargetProfile(p);
     };
+
     fetchTargetProfile();
+
+    const profilePresenceChannel = supabase
+      .channel(`profile_presence_${targetUserId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'profiles',
+          filter: `id=eq.${targetUserId}`,
+        },
+        (payload) => {
+          setTargetProfile(payload.new);
+        }
+      )
+      .subscribe();
+
+    const profileRefreshInterval = setInterval(fetchTargetProfile, 45000);
+    const presenceRecalcInterval = setInterval(() => {
+      setPresenceTick((prev) => prev + 1);
+    }, 30000);
+
+    return () => {
+      profilePresenceChannel.unsubscribe();
+      clearInterval(profileRefreshInterval);
+      clearInterval(presenceRecalcInterval);
+    };
   }, [targetUserId]);
 
   const fetchMessages = async () => {
@@ -115,6 +180,7 @@ export default function DirectMessagesView({ targetUserId, onBack, onViewProfile
   };
 
   const displayName = targetProfile ? `${targetProfile.first_name} ${targetProfile.last_name}` : 'Usuário';
+  const presenceMeta = getPresenceMeta(targetProfile?.updated_at);
 
   return (
     <div className="max-w-4xl mx-auto bg-white min-h-[calc(100vh-80px)] md:min-h-[calc(100vh-120px)] flex flex-col rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
@@ -127,12 +193,22 @@ export default function DirectMessagesView({ targetUserId, onBack, onViewProfile
           <ArrowLeft className="w-6 h-6" />
         </button>
         <div className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => onViewProfile && onViewProfile(targetUserId)}>
-          <img 
-            src={targetProfile?.avatar_url || `https://picsum.photos/seed/${targetUserId}/100/100`} 
-            alt={displayName} 
-            className="w-10 h-10 rounded-full object-cover border-2 border-white/20"
-          />
-          <h2 className="text-xl font-bold hover:underline">{displayName}</h2>
+          <div className="relative">
+            <img 
+              src={targetProfile?.avatar_url || `https://picsum.photos/seed/${targetUserId}/100/100`} 
+              alt={displayName} 
+              className="w-10 h-10 rounded-full object-cover border-2 border-white/20"
+            />
+            {presenceMeta.isOnline && (
+              <div className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-400 border-2 border-nexus-blue rounded-full" />
+            )}
+          </div>
+          <div className="flex flex-col min-w-0">
+            <h2 className="text-xl font-bold hover:underline truncate">{displayName}</h2>
+            <p className={`text-xs font-medium ${presenceMeta.isOnline ? 'text-emerald-200' : 'text-slate-200'}`}>
+              {presenceMeta.label}
+            </p>
+          </div>
         </div>
       </div>
 
