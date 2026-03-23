@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { supabase } from '../services/supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
 import { motion } from 'motion/react';
 import { 
   Camera, MapPin, Check, AlertCircle, Loader2, ArrowLeft, Save, 
@@ -37,6 +38,7 @@ export const relationships = [
 
 export default function UserProfile({ onBack }: UserProfileProps) {
   const { user, profile, checkProfile } = useAuth();
+  const { isDark } = useTheme();
   const [loading, setLoading] = useState(false);
   const [checkingUsername, setCheckingUsername] = useState(false);
   const [usernameAvailable, setUsernameAvailable] = useState<boolean | null>(true);
@@ -61,6 +63,13 @@ export default function UserProfile({ onBack }: UserProfileProps) {
 
   const [coverFile, setCoverFile] = useState<File | null>(null);
   const [coverPreview, setCoverPreview] = useState<string | null>(profile?.cover_url || null);
+
+  const labelClass = `text-xs font-bold uppercase tracking-wider ml-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`;
+  const fieldBaseClass = isDark
+    ? 'w-full bg-white/5 border border-white/15 rounded-xl py-3 px-4 text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-[#d7bb76] focus:ring-2 focus:ring-[#d7bb76]/20 transition-all'
+    : 'w-full bg-white border border-slate-200 rounded-xl py-3 px-4 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-nexus-blue focus:ring-2 focus:ring-nexus-blue/15 transition-all';
+  const selectBaseClass = `${fieldBaseClass} appearance-none`;
+  const optionClass = isDark ? 'bg-[#0f172a] text-slate-100' : 'bg-white text-slate-900';
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -220,34 +229,54 @@ export default function UserProfile({ onBack }: UserProfileProps) {
   };
 
   return (
-    <div className="w-full max-w-3xl mx-auto p-4 pb-24 bg-[#141414] min-h-screen text-white">
+    <div
+      className={`w-full max-w-3xl mx-auto p-4 pb-24 min-h-screen ${
+        isDark
+          ? 'profile-dark-moody text-slate-100'
+          : 'bg-nexus-bg text-slate-900'
+      }`}
+    >
       <div className="flex items-center gap-4 mb-8">
         <button 
           onClick={onBack}
-          className="p-2 hover:bg-white/10 rounded-full transition-colors"
+          className={`p-2 rounded-full transition-colors ${
+            isDark ? 'hover:bg-white/10' : 'hover:bg-slate-200'
+          }`}
         >
-          <ArrowLeft className="w-6 h-6 text-white/70" />
+          <ArrowLeft className={`w-6 h-6 ${isDark ? 'text-slate-300' : 'text-slate-600'}`} />
         </button>
-        <h2 className="text-2xl font-bold text-[#f3dd9b]">Editar Perfil</h2>
+        <h2 className={`text-2xl font-bold ${isDark ? 'text-[#f3dd9b]' : 'text-nexus-blue'}`}>Editar Perfil</h2>
       </div>
 
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-[#1a1a1a] rounded-2xl shadow-2xl border border-white/10 overflow-hidden"
+        className={`rounded-2xl shadow-2xl overflow-hidden ${
+          isDark
+            ? 'bg-slate-900/70 border border-[#d7bb76]/30 backdrop-blur-xl'
+            : 'bg-white border border-slate-200'
+        }`}
       >
         <form onSubmit={handleSubmit}>
           {/* Cover Upload */}
-          <div className="relative h-48 md:h-64 bg-[#141414] group overflow-hidden">
+          <div className={`relative h-48 md:h-64 group overflow-hidden ${isDark ? 'bg-[#0b1224]' : 'bg-slate-100'}`}>
             {coverPreview ? (
               <img src={coverPreview} alt="Cover Preview" className="w-full h-full object-cover" />
             ) : (
-              <div className="w-full h-full bg-gradient-to-r from-[#d7bb76]/25 to-[#1d4e89]/25 flex items-center justify-center">
-                <ImageIcon className="w-12 h-12 text-white/20" />
+              <div className={`w-full h-full flex items-center justify-center ${
+                isDark
+                  ? 'bg-gradient-to-r from-[#d7bb76]/25 to-[#1d4e89]/25'
+                  : 'bg-gradient-to-r from-nexus-blue/15 to-indigo-500/15'
+              }`}>
+                <ImageIcon className={`w-12 h-12 ${isDark ? 'text-white/20' : 'text-slate-400'}`} />
               </div>
             )}
             <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-              <label className="cursor-pointer bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-all">
+              <label className={`cursor-pointer backdrop-blur-sm px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-all ${
+                isDark
+                  ? 'bg-white/20 hover:bg-white/30 text-white'
+                  : 'bg-white/90 hover:bg-white text-slate-800'
+              }`}>
                 <Camera className="w-5 h-5" />
                 Alterar Foto de Capa
                 <input type="file" accept="image/*" onChange={handleCoverChange} className="hidden" />
@@ -259,11 +288,15 @@ export default function UserProfile({ onBack }: UserProfileProps) {
             {/* Avatar Upload (Overlapping Cover) */}
             <div className="relative flex justify-center -mt-16 mb-8">
               <div className="relative group cursor-pointer">
-                <div className="w-32 h-32 rounded-full bg-[#1a1a1a] border-4 border-[#141414] shadow-2xl overflow-hidden flex items-center justify-center">
+                <div className={`w-32 h-32 rounded-full border-4 shadow-2xl overflow-hidden flex items-center justify-center ${
+                  isDark
+                    ? 'bg-slate-900 border-[#0b1224]'
+                    : 'bg-white border-slate-100'
+                }`}>
                   {avatarPreview ? (
                     <img src={avatarPreview} alt="Preview" className="w-full h-full object-cover" />
                   ) : (
-                    <UserIcon className="text-white/20 w-16 h-16" />
+                    <UserIcon className={`${isDark ? 'text-white/20' : 'text-slate-300'} w-16 h-16`} />
                   )}
                 </div>
                 <input 
@@ -272,8 +305,12 @@ export default function UserProfile({ onBack }: UserProfileProps) {
                   onChange={handleAvatarChange}
                   className="absolute inset-0 opacity-0 cursor-pointer z-10"
                 />
-                <div className="absolute bottom-1 right-1 bg-[#d7bb76] p-2 rounded-full border-4 border-[#141414] shadow-md z-20 pointer-events-none group-hover:scale-110 transition-transform">
-                  <Camera className="text-[#0f172a] w-5 h-5" />
+                <div className={`absolute bottom-1 right-1 p-2 rounded-full border-4 shadow-md z-20 pointer-events-none group-hover:scale-110 transition-transform ${
+                  isDark
+                    ? 'bg-[#d7bb76] border-[#0b1224]'
+                    : 'bg-nexus-blue border-white'
+                }`}>
+                  <Camera className={`${isDark ? 'text-[#0f172a]' : 'text-white'} w-5 h-5`} />
                 </div>
               </div>
             </div>
@@ -296,50 +333,50 @@ export default function UserProfile({ onBack }: UserProfileProps) {
               {/* Basic Info */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-white/40 uppercase tracking-wider ml-1">Nome</label>
+                  <label className={labelClass}>Nome</label>
                   <input
                     type="text"
                     name="firstName"
                     required
                     value={formData.firstName}
                     onChange={handleInputChange}
-                    className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-white focus:outline-none focus:border-[#d7bb76] focus:ring-2 focus:ring-[#d7bb76]/20 transition-all"
+                    className={fieldBaseClass}
                     placeholder="Seu nome"
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-white/40 uppercase tracking-wider ml-1">Sobrenome</label>
+                  <label className={labelClass}>Sobrenome</label>
                   <input
                     type="text"
                     name="lastName"
                     required
                     value={formData.lastName}
                     onChange={handleInputChange}
-                    className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-white focus:outline-none focus:border-[#d7bb76] focus:ring-2 focus:ring-[#d7bb76]/20 transition-all"
+                    className={fieldBaseClass}
                     placeholder="Sobrenome"
                   />
                 </div>
               </div>
 
               <div className="space-y-2">
-                <label className="text-xs font-bold text-white/40 uppercase tracking-wider ml-1">Nome de Usuário</label>
+                <label className={labelClass}>Nome de Usuário</label>
                 <div className="relative">
-                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40 font-bold">@</div>
+                  <div className={`absolute left-4 top-1/2 -translate-y-1/2 font-bold ${isDark ? 'text-slate-400' : 'text-slate-400'}`}>@</div>
                   <input
                     type="text"
                     name="username"
                     required
                     value={formData.username}
                     onChange={handleInputChange}
-                    className={`w-full bg-white/5 border ${
+                    className={`w-full ${isDark ? 'bg-white/5 text-slate-100' : 'bg-white text-slate-900'} border ${
                       usernameAvailable === true ? 'border-emerald-500' : 
-                      usernameAvailable === false ? 'border-red-500' : 'border-white/10'
-                    } rounded-xl py-3 pl-10 pr-10 text-white focus:outline-none focus:border-[#d7bb76] focus:ring-2 focus:ring-[#d7bb76]/20 transition-all`}
+                      usernameAvailable === false ? 'border-red-500' : isDark ? 'border-white/15' : 'border-slate-200'
+                    } rounded-xl py-3 pl-10 pr-10 focus:outline-none ${isDark ? 'focus:border-[#d7bb76] focus:ring-[#d7bb76]/20' : 'focus:border-nexus-blue focus:ring-nexus-blue/15'} focus:ring-2 transition-all`}
                     placeholder="username"
                   />
                   <div className="absolute right-4 top-1/2 -translate-y-1/2">
                     {checkingUsername ? (
-                      <Loader2 className="w-4 h-4 text-white/40 animate-spin" />
+                      <Loader2 className={`w-4 h-4 animate-spin ${isDark ? 'text-slate-400' : 'text-slate-400'}`} />
                     ) : usernameAvailable === true ? (
                       <Check className="w-4 h-4 text-emerald-500" />
                     ) : usernameAvailable === false ? (
@@ -354,13 +391,13 @@ export default function UserProfile({ onBack }: UserProfileProps) {
 
               {/* Bio */}
               <div className="space-y-2">
-                <label className="text-xs font-bold text-white/40 uppercase tracking-wider ml-1">Biografia</label>
+                <label className={labelClass}>Biografia</label>
                 <textarea
                   name="bio"
                   value={formData.bio}
                   onChange={handleInputChange}
                   rows={3}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-white focus:outline-none focus:border-[#d7bb76] focus:ring-2 focus:ring-[#d7bb76]/20 transition-all resize-none"
+                  className={`${fieldBaseClass} resize-none`}
                   placeholder="Conte um pouco sobre você..."
                 />
               </div>
@@ -368,92 +405,92 @@ export default function UserProfile({ onBack }: UserProfileProps) {
               {/* Personal Details */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-white/40 uppercase tracking-wider ml-1">Data de Nascimento</label>
+                  <label className={labelClass}>Data de Nascimento</label>
                   <div className="relative">
-                    <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40 w-4 h-4" />
+                    <Calendar className={`absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 ${isDark ? 'text-slate-400' : 'text-slate-400'}`} />
                     <input
                       type="date"
                       name="birthdate"
                       value={formData.birthdate}
                       onChange={handleInputChange}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-10 px-4 text-white focus:outline-none focus:border-[#d7bb76] focus:ring-2 focus:ring-[#d7bb76]/20 transition-all [color-scheme:dark]"
+                      className={`${fieldBaseClass} pl-10 ${isDark ? '[color-scheme:dark]' : '[color-scheme:light]'}`}
                     />
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-white/40 uppercase tracking-wider ml-1">Nacionalidade</label>
+                  <label className={labelClass}>Nacionalidade</label>
                   <div className="relative">
-                    <Globe className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40 w-4 h-4" />
+                    <Globe className={`absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 ${isDark ? 'text-slate-400' : 'text-slate-400'}`} />
                     <select
                       name="nationality"
                       value={formData.nationality}
                       onChange={handleInputChange}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-10 px-4 text-white focus:outline-none focus:border-[#d7bb76] focus:ring-2 focus:ring-[#d7bb76]/20 transition-all appearance-none"
+                      className={`${selectBaseClass} pl-10`}
                     >
                       {nationalities.map(nat => (
-                        <option key={nat.value} value={nat.value} className="bg-[#1a1a1a]">{nat.label}</option>
+                        <option key={nat.value} value={nat.value} className={optionClass}>{nat.label}</option>
                       ))}
                     </select>
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-white/40 uppercase tracking-wider ml-1">Sexo</label>
+                  <label className={labelClass}>Sexo</label>
                   <select
                     name="gender"
                     value={formData.gender}
                     onChange={handleInputChange}
-                    className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-white focus:outline-none focus:border-[#d7bb76] focus:ring-2 focus:ring-[#d7bb76]/20 transition-all appearance-none"
+                    className={selectBaseClass}
                   >
-                    <option value="male" className="bg-[#1a1a1a]">Masculino</option>
-                    <option value="female" className="bg-[#1a1a1a]">Feminino</option>
-                    <option value="other" className="bg-[#1a1a1a]">Outro / Prefiro não dizer</option>
+                    <option value="male" className={optionClass}>Masculino</option>
+                    <option value="female" className={optionClass}>Feminino</option>
+                    <option value="other" className={optionClass}>Outro / Prefiro não dizer</option>
                   </select>
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-white/40 uppercase tracking-wider ml-1">Relacionamento</label>
+                  <label className={labelClass}>Relacionamento</label>
                   <div className="relative">
-                    <Heart className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40 w-4 h-4" />
+                    <Heart className={`absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 ${isDark ? 'text-slate-400' : 'text-slate-400'}`} />
                     <select
                       name="relationship"
                       value={formData.relationship}
                       onChange={handleInputChange}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-10 px-4 text-white focus:outline-none focus:border-[#d7bb76] focus:ring-2 focus:ring-[#d7bb76]/20 transition-all appearance-none"
+                      className={`${selectBaseClass} pl-10`}
                     >
                       {relationships.map(rel => (
-                        <option key={rel.value} value={rel.value} className="bg-[#1a1a1a]">{rel.label}</option>
+                        <option key={rel.value} value={rel.value} className={optionClass}>{rel.label}</option>
                       ))}
                     </select>
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-white/40 uppercase tracking-wider ml-1">Cidade Atual</label>
+                  <label className={labelClass}>Cidade Atual</label>
                   <div className="relative">
-                    <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40 w-4 h-4" />
+                    <MapPin className={`absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 ${isDark ? 'text-slate-400' : 'text-slate-400'}`} />
                     <input
                       type="text"
                       name="city"
                       value={formData.city}
                       onChange={handleInputChange}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-10 px-4 text-white focus:outline-none focus:border-[#d7bb76] focus:ring-2 focus:ring-[#d7bb76]/20 transition-all"
+                      className={`${fieldBaseClass} pl-10`}
                       placeholder="Sua cidade"
                     />
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-white/40 uppercase tracking-wider ml-1">Profissão / Ocupação</label>
+                  <label className={labelClass}>Profissão / Ocupação</label>
                   <div className="relative">
-                    <Briefcase className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40 w-4 h-4" />
+                    <Briefcase className={`absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 ${isDark ? 'text-slate-400' : 'text-slate-400'}`} />
                     <input
                       type="text"
                       name="occupation"
                       value={formData.occupation}
                       onChange={handleInputChange}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-10 px-4 text-white focus:outline-none focus:border-[#d7bb76] focus:ring-2 focus:ring-[#d7bb76]/20 transition-all"
+                      className={`${fieldBaseClass} pl-10`}
                       placeholder="Ex: Desenvolvedor, Estudante..."
                     />
                   </div>
@@ -464,7 +501,11 @@ export default function UserProfile({ onBack }: UserProfileProps) {
                 <button
                   type="submit"
                   disabled={loading || !usernameAvailable}
-                  className="w-full bg-gradient-to-r from-[#d7bb76] to-[#b78a37] text-[#0f172a] font-bold py-4 rounded-xl hover:from-[#e2c78f] hover:to-[#c59641] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-[#d7bb76]/25"
+                  className={`w-full font-bold py-4 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg ${
+                    isDark
+                      ? 'bg-gradient-to-r from-[#d7bb76] to-[#b78a37] text-[#0f172a] hover:from-[#e2c78f] hover:to-[#c59641] shadow-[#d7bb76]/25'
+                      : 'bg-nexus-blue text-white hover:bg-blue-700 shadow-nexus-blue/20'
+                  }`}
                 >
                   {loading ? (
                     <>
