@@ -1079,6 +1079,19 @@ export default function UserProfileView({ onEdit, userId, onSendMessage }: UserP
                 {isOwnProfile && (
                   <div className="flex items-center gap-2">
                     <button
+                      onClick={() => setIsAlbumManageMode(true)}
+                      disabled={albumItems.length <= 1}
+                      className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border disabled:opacity-60 ${
+                        isDark
+                          ? 'bg-[#d7bb76]/15 hover:bg-[#d7bb76]/25 text-[#f3dd9b] border-[#d7bb76]/35'
+                          : 'bg-amber-50 hover:bg-amber-100 text-amber-700 border-amber-200'
+                      }`}
+                      title="Editar capa da revista"
+                    >
+                      <Crown className="w-3.5 h-3.5" />
+                      Editar capa
+                    </button>
+                    <button
                       onClick={() => setIsAlbumManageMode((prev) => !prev)}
                       disabled={albumItems.length <= 1}
                       className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border disabled:opacity-60 ${isDark ? 'bg-white/10 hover:bg-white/15 text-slate-100 border-white/20' : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'}`}
@@ -1117,9 +1130,15 @@ export default function UserProfileView({ onEdit, userId, onSendMessage }: UserP
                 </div>
               )}
 
+              {!isAlbumManageMode && isOwnProfile && albumItems.length > 1 && (
+                <div className={`mb-3 text-[11px] px-3 py-2 rounded-lg border ${isDark ? 'bg-white/10 border-white/20 text-slate-200' : 'bg-slate-50 border-slate-200 text-slate-600'}`}>
+                  Dica: use <span className="font-bold">Editar capa</span> ou toque na <span className="font-bold">👑</span> das miniaturas para escolher a capa da revista.
+                </div>
+              )}
+
               {isAlbumManageMode && (
                 <div className={`mb-3 text-[11px] px-3 py-2 rounded-lg border ${isDark ? 'bg-[#d7bb76]/10 border-[#d7bb76]/30 text-[#f3dd9b]' : 'bg-amber-50 border-amber-200 text-amber-700'}`}>
-                  Modo organizar ativo: arraste as miniaturas para reordenar. A capa fica fixa no topo.
+                  Modo organizar ativo: arraste as miniaturas para reordenar e toque na 👑 para definir a nova capa.
                 </div>
               )}
 
@@ -1171,6 +1190,10 @@ export default function UserProfileView({ onEdit, userId, onSendMessage }: UserP
                             </span>
                           )}
                         </div>
+                      </div>
+                      <div className="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full bg-[#d7bb76]/90 text-[#1e293b] px-2.5 py-1 text-[10px] font-black uppercase tracking-wider">
+                        <Crown className="w-3 h-3" />
+                        Capa atual
                       </div>
                     </button>
                   )}
@@ -1258,7 +1281,7 @@ export default function UserProfileView({ onEdit, userId, onSendMessage }: UserP
                                 handleSetAlbumCover(item.id);
                               }}
                               disabled={albumSavingLayout}
-                              className="p-1.5 rounded-full bg-black/55 text-[#f3dd9b] hover:bg-black/75 disabled:opacity-60"
+                              className="p-1.5 rounded-full bg-gradient-to-br from-[#f6e0a1] to-[#d7bb76] text-[#1e293b] hover:from-[#f8e6b0] hover:to-[#dcbf79] shadow-[0_0_0_1px_rgba(15,23,42,0.4)] disabled:opacity-60"
                               title="Definir como capa"
                             >
                               <Crown className="w-3.5 h-3.5" />
