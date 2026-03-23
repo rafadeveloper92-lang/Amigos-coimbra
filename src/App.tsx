@@ -142,7 +142,17 @@ export default function App() {
         return <FriendsView onViewProfile={handleViewProfile} onSendMessage={handleSendMessage} />;
       case 'messages':
         if (messagingUserId) {
-          return <DirectMessagesView targetUserId={messagingUserId} onBack={() => setMessagingUserId(null)} onViewProfile={handleViewProfile} />;
+          return (
+            <DirectMessagesView
+              targetUserId={messagingUserId}
+              onBack={() => setMessagingUserId(null)}
+              onViewProfile={handleViewProfile}
+              onOpenPost={(postId) => {
+                setViewingPostId(postId);
+                setCurrentView('post_detail');
+              }}
+            />
+          );
         }
         return <MessagesListView onSelectConversation={handleSendMessage} />;
       case 'post_detail':

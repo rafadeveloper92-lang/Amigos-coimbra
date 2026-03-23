@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../contexts/AuthContext';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 import BrandWatermark from './BrandWatermark';
+import { serializePostShareMessage } from '../utils/storyReplyMessage';
 
 interface PostProps {
   id: number;
@@ -356,16 +357,16 @@ export default function PostCard({ id, userId, author, author_avatar, group, tim
     const friendId = String(friendIdRaw);
     setSendingFriendId(friendId);
     try {
-      const contentSnippet = content?.trim();
-      const messageParts = [
-        isVideoMedia
-          ? `🎬 ${author} compartilhou um vídeo no feed:`
-          : `📷 ${author} compartilhou uma publicação no feed:`,
-        contentSnippet ? `“${contentSnippet.length > 160 ? `${contentSnippet.slice(0, 157)}...` : contentSnippet}”` : '',
-        image ? image : '',
-      ].filter(Boolean);
-
-      const messagePayload = messageParts.join('\n');
+      const contentSnippet = content?.trim() || '';
+      const ownerUsername = String(author || '').replace(/^@/, '').trim();
+      const messagePayload = serializePostShareMessage({
+        v: 1,
+        postId: id,
+        mediaUrl: image || undefined,
+        mediaType: image ? (isVideoMedia ? 'video' : 'image') : undefined,
+        ownerUsername: ownerUsername || undefined,
+        text: contentSnippet.length > 220 ? `${contentSnippet.slice(0, 217)}...` : contentSnippet || 'Veja esta publicação',
+      });
       const sent = await dataService.sendDirectMessage(user.id, friendId, messagePayload);
       if (!sent) {
         throw new Error('Falha ao enviar mensagem.');

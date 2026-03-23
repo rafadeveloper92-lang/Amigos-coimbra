@@ -3,15 +3,16 @@ import { ArrowLeft, Send, User as UserIcon } from 'lucide-react';
 import { dataService } from '../services/dataService';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../services/supabaseClient';
-import { parseStoryReplyMessage } from '../utils/storyReplyMessage';
+import { parsePostShareMessage, parseStoryReplyMessage } from '../utils/storyReplyMessage';
 
 interface DirectMessagesViewProps {
   targetUserId: string;
   onBack: () => void;
   onViewProfile?: (userId: string) => void;
+  onOpenPost?: (postId: number) => void;
 }
 
-export default function DirectMessagesView({ targetUserId, onBack, onViewProfile }: DirectMessagesViewProps) {
+export default function DirectMessagesView({ targetUserId, onBack, onViewProfile, onOpenPost }: DirectMessagesViewProps) {
   const [messages, setMessages] = useState<any[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
@@ -149,6 +150,7 @@ export default function DirectMessagesView({ targetUserId, onBack, onViewProfile
         ) : (
           messages.map((msg, idx) => {
             const isMe = msg.sender_id === user?.id;
+            const postShare = parsePostShareMessage(msg.content || '');
             const storyReply = parseStoryReplyMessage(msg.content || '');
             return (
               <div key={msg.id || `dm-${idx}`} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
@@ -157,7 +159,62 @@ export default function DirectMessagesView({ targetUserId, onBack, onViewProfile
                     ? 'bg-nexus-blue text-white rounded-tr-sm' 
                     : 'bg-white border border-slate-200 text-slate-800 rounded-tl-sm shadow-sm'
                 }`}>
-                  {storyReply ? (
+                  {postShare ? (
+                    <div className="space-y-2">
+                      <div
+                        className={`rounded-xl overflow-hidden border ${isMe ? 'border-white/25' : 'border-slate-200'} bg-black/10 cursor-pointer`}
+                        onClick={() => {
+                          if (onOpenPost && Number.isFinite(postShare.postId)) {
+                            onOpenPost(postShare.postId);
+                          }
+                        }}
+                      >
+                        {postShare.mediaUrl ? (
+                          <div className="relative w-full h-36 bg-black">
+                            {postShare.mediaType === 'video' ? (
+                              <video
+                                src={postShare.mediaUrl}
+                                muted
+                                playsInline
+                                preload="metadata"
+                                className="w-full h-full object-cover opacity-90"
+                              />
+                            ) : (
+                              <img
+                                src={postShare.mediaUrl}
+                                alt="Prévia da publicação"
+                                className="w-full h-full object-cover"
+                              />
+                            )}
+                            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-2">
+                              <p className="text-[10px] font-bold text-white tracking-wide">
+                                {postShare.mediaType === 'video' ? 'Vídeo compartilhado' : 'Publicação compartilhada'}
+                                {postShare.ownerUsername ? ` • @${postShare.ownerUsername.replace(/^@/, '')}` : ''}
+                              </p>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className={`p-3 ${isMe ? 'bg-white/10' : 'bg-slate-50'}`}>
+                            <p className={`text-xs font-semibold ${isMe ? 'text-white' : 'text-slate-700'}`}>
+                              Publicação compartilhada
+                              {postShare.ownerUsername ? ` de @${postShare.ownerUsername.replace(/^@/, '')}` : ''}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                      <p className="text-sm whitespace-pre-wrap break-words">{postShare.text}</p>
+                      {onOpenPost && Number.isFinite(postShare.postId) && (
+                        <button
+                          onClick={() => onOpenPost(postShare.postId)}
+                          className={`text-[11px] font-bold underline underline-offset-2 ${
+                            isMe ? 'text-white/90 hover:text-white' : 'text-nexus-blue hover:text-nexus-blue/80'
+                          }`}
+                        >
+                          Ver publicação
+                        </button>
+                      )}
+                    </div>
+                  ) : storyReply ? (
                     <div className="space-y-2">
                       <div className={`rounded-xl overflow-hidden border ${isMe ? 'border-white/25' : 'border-slate-200'} bg-black/10`}>
                         <div className="relative w-full h-28 bg-black">

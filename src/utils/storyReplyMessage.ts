@@ -7,7 +7,17 @@ export type StoryReplyPayload = {
   text: string;
 };
 
+export type PostSharePayload = {
+  v: 1;
+  postId: number;
+  mediaUrl?: string;
+  mediaType?: 'image' | 'video';
+  ownerUsername?: string;
+  text: string;
+};
+
 const PREFIX = '__STORY_REPLY_V1__';
+const POST_PREFIX = '__POST_SHARE_V1__';
 const LEGACY_PREFIX = '📷 Respondeu ao seu story:';
 
 const encode = (value: string) => {
@@ -60,7 +70,41 @@ export const parseStoryReplyMessage = (content: string): StoryReplyPayload | nul
   return null;
 };
 
+export const serializePostShareMessage = (payload: PostSharePayload) => (
+  `${POST_PREFIX}${encode(JSON.stringify(payload))}`
+);
+
+export const parsePostShareMessage = (content: string): PostSharePayload | null => {
+  if (!content) return null;
+  if (!content.startsWith(POST_PREFIX)) return null;
+
+  const raw = content.slice(POST_PREFIX.length);
+  const decoded = decode(raw);
+  if (!decoded) return null;
+
+  try {
+    const parsed = JSON.parse(decoded) as PostSharePayload;
+    if (
+      parsed?.v === 1 &&
+      typeof parsed.postId === 'number' &&
+      parsed.postId > 0 &&
+      typeof parsed.text === 'string'
+    ) {
+      return parsed;
+    }
+  } catch {
+    // no-op
+  }
+  return null;
+};
+
 export const getConversationPreviewText = (content: string) => {
+  const postPayload = parsePostShareMessage(content);
+  if (postPayload) {
+    const snippet = (postPayload.text || '').trim();
+    return `📤 Compartilhou uma publicação${snippet ? `: ${snippet}` : ''}`;
+  }
+
   const payload = parseStoryReplyMessage(content);
   if (payload) {
     return `📷 Respondeu ao story: ${payload.text}`;
