@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
 import { dataService } from '../services/dataService';
 import { supabase } from '../services/supabaseClient';
 import { Post as PostType } from '../types';
@@ -27,7 +28,9 @@ import {
   ShieldAlert,
   Plus,
   Play,
-  UserSquare
+  UserSquare,
+  Moon,
+  Sun
 } from 'lucide-react';
 import { nationalities, relationships } from './UserProfile';
 
@@ -39,6 +42,7 @@ interface UserProfileViewProps {
 
 export default function UserProfileView({ onEdit, userId, onSendMessage }: UserProfileViewProps) {
   const { profile: currentUserProfile, user: currentUser } = useAuth();
+  const { isDark, mode, toggleMode, isSavingTheme } = useTheme();
   const [profile, setProfile] = useState<any>(null);
   const [posts, setPosts] = useState<PostType[]>([]);
   const [loading, setLoading] = useState(true);
@@ -189,15 +193,20 @@ export default function UserProfileView({ onEdit, userId, onSendMessage }: UserP
   const [isAddingFriend, setIsAddingFriend] = useState(false);
   const [friendshipStatus, setFriendshipStatus] = useState<any>(null);
   const [showDropdown, setShowDropdown] = useState(false);
+  const [showOwnProfileMenu, setShowOwnProfileMenu] = useState(false);
   const [modalState, setModalState] = useState<{ isOpen: boolean, title: string, message: string, type: 'alert' | 'confirm', onConfirm?: () => void }>({
     isOpen: false, title: '', message: '', type: 'alert'
   });
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const ownProfileMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setShowDropdown(false);
+      }
+      if (ownProfileMenuRef.current && !ownProfileMenuRef.current.contains(event.target as Node)) {
+        setShowOwnProfileMenu(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -277,7 +286,7 @@ export default function UserProfileView({ onEdit, userId, onSendMessage }: UserP
   };
 
   return (
-    <div className="w-full max-w-4xl mx-auto pb-24">
+    <div className={`w-full max-w-4xl mx-auto pb-24 ${isDark ? 'profile-dark-moody' : ''}`}>
       {/* Custom Modal */}
       {modalState.isOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
@@ -319,7 +328,7 @@ export default function UserProfileView({ onEdit, userId, onSendMessage }: UserP
       {/* Header / Cover Section */}
       <div className="bg-white overflow-hidden shadow-sm border-b border-slate-100">
         {/* Cover Photo */}
-        <div className="h-[30vh] md:h-[45vh] bg-slate-100 relative group overflow-hidden">
+            <div className={`h-[30vh] md:h-[45vh] relative group overflow-hidden ${isDark ? 'bg-slate-900' : 'bg-slate-100'}`}>
           {coverUrl ? (
             <img src={coverUrl} alt="Cover" className="w-full h-full object-cover" />
           ) : (
@@ -380,9 +389,38 @@ export default function UserProfileView({ onEdit, userId, onSendMessage }: UserP
                   <Edit3 className="w-4 h-4" />
                   Editar Perfil
                 </button>
-                <button className="bg-slate-100 hover:bg-slate-200 text-slate-900 p-2 rounded-lg transition-all border border-slate-200 shadow-sm">
-                  <MoreHorizontal className="w-5 h-5" />
-                </button>
+                <div className="relative" ref={ownProfileMenuRef}>
+                  <button
+                    onClick={() => setShowOwnProfileMenu((prev) => !prev)}
+                    className="bg-slate-100 hover:bg-slate-200 text-slate-900 p-2 rounded-lg transition-all border border-slate-200 shadow-sm"
+                    title="Mais opções"
+                  >
+                    <MoreHorizontal className="w-5 h-5" />
+                  </button>
+
+                  {showOwnProfileMenu && (
+                    <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-xl border border-slate-100 overflow-hidden z-50">
+                      <button
+                        onClick={async () => {
+                          await toggleMode();
+                          setShowOwnProfileMenu(false);
+                        }}
+                        disabled={isSavingTheme}
+                        className="w-full text-left px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 font-medium transition-colors flex items-center justify-between gap-3 disabled:opacity-60"
+                      >
+                        <span className="inline-flex items-center gap-2">
+                          {isDark ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-nexus-blue" />}
+                          {isDark ? 'Mudar para modo claro' : 'Mudar para modo escuro'}
+                        </span>
+                        {isSavingTheme ? (
+                          <div className="w-4 h-4 border-2 border-slate-300 border-t-slate-500 rounded-full animate-spin" />
+                        ) : (
+                          <span className="text-[11px] font-bold text-slate-400 uppercase">{mode}</span>
+                        )}
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             ) : (
               <>

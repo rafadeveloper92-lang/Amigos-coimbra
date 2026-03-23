@@ -13,6 +13,94 @@
   body {
     @apply bg-nexus-bg text-slate-900 font-sans;
   }
+
+  html,
+  body {
+    transition: background-color 220ms ease, color 220ms ease;
+  }
+
+  .theme-dark body {
+    background:
+      radial-gradient(1200px 700px at 15% -20%, rgba(59, 130, 246, 0.22), transparent 55%),
+      radial-gradient(900px 600px at 95% 10%, rgba(217, 119, 6, 0.12), transparent 48%),
+      #060b17;
+    color: #e2e8f0;
+  }
+
+  .theme-dark .bg-nexus-bg {
+    background-color: #060b17 !important;
+  }
+
+  .theme-dark .bg-white {
+    background-color: rgba(15, 23, 42, 0.78) !important;
+    -webkit-backdrop-filter: blur(14px);
+    backdrop-filter: blur(14px);
+  }
+
+  .theme-dark .bg-slate-50,
+  .theme-dark .bg-slate-50\/50 {
+    background-color: rgba(30, 41, 59, 0.54) !important;
+  }
+
+  .theme-dark .bg-slate-100 {
+    background-color: rgba(51, 65, 85, 0.52) !important;
+  }
+
+  .theme-dark .border-slate-50,
+  .theme-dark .border-slate-100,
+  .theme-dark .border-slate-200 {
+    border-color: rgba(148, 163, 184, 0.22) !important;
+  }
+
+  .theme-dark .text-slate-900 {
+    color: #f8fafc !important;
+  }
+
+  .theme-dark .text-slate-800 {
+    color: #e2e8f0 !important;
+  }
+
+  .theme-dark .text-slate-700 {
+    color: #cbd5e1 !important;
+  }
+
+  .theme-dark .text-slate-600 {
+    color: #cbd5e1 !important;
+  }
+
+  .theme-dark .text-slate-500,
+  .theme-dark .text-slate-400 {
+    color: #94a3b8 !important;
+  }
+
+  .theme-dark .shadow-sm,
+  .theme-dark .shadow-md {
+    box-shadow: 0 14px 30px rgba(2, 6, 23, 0.35) !important;
+  }
+
+  .theme-dark .hover\:bg-slate-50:hover,
+  .theme-dark .hover\:bg-slate-100:hover,
+  .theme-dark .hover\:bg-slate-200:hover {
+    background-color: rgba(71, 85, 105, 0.55) !important;
+  }
+
+  .theme-dark .profile-dark-moody {
+    background:
+      radial-gradient(700px 380px at 50% 2%, rgba(30, 58, 138, 0.2), transparent 65%),
+      linear-gradient(180deg, rgba(3, 7, 18, 0.95) 0%, rgba(2, 6, 23, 0.98) 100%);
+    border-radius: 18px;
+    overflow: hidden;
+  }
+
+  .theme-dark .profile-dark-moody .bg-white {
+    background: rgba(15, 23, 42, 0.7) !important;
+    -webkit-backdrop-filter: blur(16px);
+    backdrop-filter: blur(16px);
+  }
+
+  .theme-dark .profile-dark-moody .border-white {
+    border-color: rgba(148, 163, 184, 0.34) !important;
+  }
 }
 
 @layer utilities {
