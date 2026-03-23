@@ -179,24 +179,31 @@ export default function StoriesBar() {
           {/* User Stories */}
           {usersWithStories.map((userStories) => {
             const user = userStories[0].profile;
-            if (!user) return null;
+            const storyOwnerId = userStories[0].user_id;
+            const isCurrentUserStories = !!currentUser && storyOwnerId === currentUser.id;
+            const displayName = isCurrentUserStories
+              ? 'Você'
+              : (user?.username || 'Story');
+            const avatarUrl = user?.avatar_url
+              || (isCurrentUserStories ? currentUser?.avatar_url : '')
+              || `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}`;
             
             return (
-              <div key={user.id} className="flex flex-col items-center gap-1 shrink-0">
+              <div key={storyOwnerId} className="flex flex-col items-center gap-1 shrink-0">
                 <button 
                   onClick={() => openViewer(userStories)}
                   className="w-16 h-16 rounded-full p-[3px] bg-gradient-to-tr from-amber-400 via-rose-500 to-fuchsia-600"
                 >
                   <div className="w-full h-full rounded-full p-[2px] bg-white">
                     <img 
-                      src={user.avatar_url || `https://ui-avatars.com/api/?name=${user.username}`} 
-                      alt={user.username} 
+                      src={avatarUrl}
+                      alt={displayName}
                       className="w-full h-full rounded-full object-cover"
                     />
                   </div>
                 </button>
                 <span className="text-[10px] font-medium text-slate-500 truncate w-16 text-center">
-                  {user.username}
+                  {displayName}
                 </span>
               </div>
             );

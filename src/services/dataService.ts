@@ -5,16 +5,7 @@ export const dataService = {
   async getStories(): Promise<Story[]> {
     const { data, error } = await supabase
       .from('stories')
-      .select(`
-        *,
-        profile:user_id (
-          id,
-          username,
-          first_name,
-          last_name,
-          avatar_url
-        )
-      `)
+      .select('*')
       .gt('expires_at', new Date().toISOString())
       .order('created_at', { ascending: false });
 
@@ -22,7 +13,28 @@ export const dataService = {
       console.error('Error fetching stories:', error);
       return [];
     }
-    return data || [];
+
+    const stories = (data || []) as Story[];
+    if (stories.length === 0) return [];
+
+    const userIds = Array.from(new Set(stories.map((story) => story.user_id).filter(Boolean)));
+    if (userIds.length === 0) return stories;
+
+    const { data: profilesData, error: profilesError } = await supabase
+      .from('profiles')
+      .select('id, username, first_name, last_name, avatar_url')
+      .in('id', userIds);
+
+    if (profilesError) {
+      console.error('Error fetching story profiles:', profilesError);
+      return stories;
+    }
+
+    const profileMap = new Map((profilesData || []).map((profile: any) => [profile.id, profile]));
+    return stories.map((story) => ({
+      ...story,
+      profile: profileMap.get(story.user_id),
+    }));
   },
 
   async createStory(story: Partial<Story>) {
