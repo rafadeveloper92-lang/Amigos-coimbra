@@ -117,6 +117,11 @@ export interface Story {
   user_id: string;
   media_url: string;
   media_type: 'image' | 'video';
+  caption?: string;
+  text_color?: string;
+  text_font?: string;
+  location_name?: string;
+  music_title?: string;
   created_at: string;
   expires_at: string;
   profile?: Profile;

@@ -42,17 +42,53 @@ export const dataService = {
       throw new Error('Dados obrigatórios do story ausentes.');
     }
 
-    const storyPayload = {
-      ...story,
+    const baseStoryPayload = {
+      user_id: story.user_id,
+      media_url: story.media_url,
+      media_type: story.media_type,
       expires_at: story.expires_at || new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+    };
+
+    const storyPayload = {
+      ...baseStoryPayload,
+      caption: story.caption || null,
+      text_color: story.text_color || null,
+      text_font: story.text_font || null,
+      location_name: story.location_name || null,
+      music_title: story.music_title || null,
     };
 
     const { data, error } = await supabase
       .from('stories')
       .insert([storyPayload])
       .select();
-    if (error) throw error;
+    if (error) {
+      const canRetryWithBasePayload =
+        error.code === 'PGRST204' ||
+        error.message.toLowerCase().includes('column') ||
+        error.message.toLowerCase().includes('schema cache');
+
+      if (!canRetryWithBasePayload) throw error;
+
+      const { data: retryData, error: retryError } = await supabase
+        .from('stories')
+        .insert([baseStoryPayload])
+        .select();
+
+      if (retryError) throw retryError;
+      return retryData;
+    }
     return data;
+  },
+
+  async deleteStory(storyId: string) {
+    const { error } = await supabase
+      .from('stories')
+      .delete()
+      .eq('id', storyId);
+
+    if (error) throw error;
+    return true;
   },
 
   async uploadStoryMedia(file: File): Promise<string | null> {

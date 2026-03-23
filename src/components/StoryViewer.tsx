@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
-import { X, ChevronLeft, ChevronRight, MoreVertical } from 'lucide-react';
+import { motion } from 'motion/react';
+import { X, ChevronLeft, ChevronRight, MoreVertical, Trash2, MapPin, Music } from 'lucide-react';
 import { Story } from '../types';
+import { useAuth } from '../contexts/AuthContext';
+import { dataService } from '../services/dataService';
 
 interface StoryViewerProps {
   stories: Story[];
@@ -9,6 +11,8 @@ interface StoryViewerProps {
 }
 
 export default function StoryViewer({ stories, onClose }: StoryViewerProps) {
+  const { user: authUser } = useAuth();
+  const [localStories, setLocalStories] = useState<Story[]>(stories);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [progress, setProgress] = useState(0);
   const duration = 5000; // 5 seconds per story
@@ -16,14 +20,33 @@ export default function StoryViewer({ stories, onClose }: StoryViewerProps) {
   const startTimeRef = useRef<number>(0);
   const pausedTimeRef = useRef<number>(0);
   const [isPaused, setIsPaused] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
-  const currentStory = stories[currentIndex];
-  const user = currentStory.profile;
+  const currentStory = localStories[currentIndex];
+  const user = currentStory?.profile;
+  const isOwnStory = !!authUser && !!currentStory && currentStory.user_id === authUser.id;
 
   useEffect(() => {
+    setLocalStories(stories);
+    setCurrentIndex(0);
+    setProgress(0);
+    setShowMenu(false);
+    setDeleteError(null);
+  }, [stories]);
+
+  useEffect(() => {
+    if (localStories.length === 0) {
+      onClose();
+    }
+  }, [localStories.length, onClose]);
+
+  useEffect(() => {
+    if (localStories.length === 0) return;
     startTimer();
     return () => stopTimer();
-  }, [currentIndex]);
+  }, [currentIndex, localStories.length]);
 
   const startTimer = () => {
     stopTimer();
@@ -46,7 +69,8 @@ export default function StoryViewer({ stories, onClose }: StoryViewerProps) {
   };
 
   const nextStory = () => {
-    if (currentIndex < stories.length - 1) {
+    setShowMenu(false);
+    if (currentIndex < localStories.length - 1) {
       setCurrentIndex(prev => prev + 1);
       setProgress(0);
       pausedTimeRef.current = 0;
@@ -56,6 +80,7 @@ export default function StoryViewer({ stories, onClose }: StoryViewerProps) {
   };
 
   const prevStory = () => {
+    setShowMenu(false);
     if (currentIndex > 0) {
       setCurrentIndex(prev => prev - 1);
       setProgress(0);
@@ -74,6 +99,36 @@ export default function StoryViewer({ stories, onClose }: StoryViewerProps) {
     startTimer();
   };
 
+  const handleDeleteCurrentStory = async () => {
+    if (!currentStory?.id) return;
+
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await dataService.deleteStory(currentStory.id);
+      const updatedStories = localStories.filter((story) => story.id !== currentStory.id);
+      setLocalStories(updatedStories);
+
+      if (updatedStories.length === 0) {
+        onClose();
+        return;
+      }
+
+      const nextIndex = Math.min(currentIndex, updatedStories.length - 1);
+      setCurrentIndex(nextIndex);
+      setProgress(0);
+      pausedTimeRef.current = 0;
+      setShowMenu(false);
+    } catch (error) {
+      console.error('Erro ao excluir story:', error);
+      setDeleteError('Não foi possível excluir este story.');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  if (!currentStory) return null;
+
   return (
     <motion.div 
       initial={{ opacity: 0 }}
@@ -84,7 +139,7 @@ export default function StoryViewer({ stories, onClose }: StoryViewerProps) {
       <div className="relative w-full max-w-lg h-full md:h-[90vh] md:rounded-2xl overflow-hidden bg-slate-900 shadow-2xl">
         {/* Progress Bars */}
         <div className="absolute top-4 left-4 right-4 z-20 flex gap-1">
-          {stories.map((_, index) => (
+          {localStories.map((_, index) => (
             <div key={index} className="h-1 flex-1 bg-white/20 rounded-full overflow-hidden">
               <div 
                 className="h-full bg-white transition-all duration-50 ease-linear"
@@ -111,10 +166,29 @@ export default function StoryViewer({ stories, onClose }: StoryViewerProps) {
               <p className="text-[10px] opacity-70">Há 2 horas</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <button className="p-2 text-white hover:bg-white/10 rounded-full transition-colors">
-              <MoreVertical className="w-5 h-5" />
-            </button>
+          <div className="flex items-center gap-2 relative">
+            {isOwnStory && (
+              <>
+                <button
+                  onClick={() => setShowMenu((prev) => !prev)}
+                  className="p-2 text-white hover:bg-white/10 rounded-full transition-colors"
+                >
+                  <MoreVertical className="w-5 h-5" />
+                </button>
+                {showMenu && (
+                  <div className="absolute right-10 top-10 bg-white rounded-xl shadow-xl py-1.5 min-w-[140px]">
+                    <button
+                      onClick={handleDeleteCurrentStory}
+                      disabled={deleting}
+                      className="w-full px-3 py-2 text-sm text-red-600 hover:bg-red-50 font-semibold flex items-center gap-2 disabled:opacity-50"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      {deleting ? 'Excluindo...' : 'Excluir story'}
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
             <button 
               onClick={onClose}
               className="p-2 text-white hover:bg-white/10 rounded-full transition-colors"
@@ -123,6 +197,32 @@ export default function StoryViewer({ stories, onClose }: StoryViewerProps) {
             </button>
           </div>
         </div>
+
+        {/* Metadata */}
+        {(currentStory.location_name || currentStory.music_title) && (
+          <div className="absolute top-24 left-4 right-4 z-20 flex flex-wrap gap-2">
+            {currentStory.location_name && (
+              <div className="px-3 py-1 rounded-full bg-black/50 text-white text-xs font-semibold flex items-center gap-1">
+                <MapPin className="w-3.5 h-3.5" />
+                {currentStory.location_name}
+              </div>
+            )}
+            {currentStory.music_title && (
+              <div className="px-3 py-1 rounded-full bg-black/50 text-white text-xs font-semibold flex items-center gap-1">
+                <Music className="w-3.5 h-3.5" />
+                {currentStory.music_title}
+              </div>
+            )}
+          </div>
+        )}
+
+        {deleteError && (
+          <div className="absolute top-24 left-4 right-4 z-20">
+            <div className="bg-red-600/90 text-white text-xs font-semibold px-3 py-2 rounded-lg">
+              {deleteError}
+            </div>
+          </div>
+        )}
 
         {/* Content */}
         <div 
@@ -160,6 +260,21 @@ export default function StoryViewer({ stories, onClose }: StoryViewerProps) {
             />
           </div>
         </div>
+
+        {/* Caption Overlay */}
+        {currentStory.caption && (
+          <div className="absolute left-4 right-4 bottom-24 z-20 text-center pointer-events-none">
+            <p
+              className="text-2xl md:text-3xl font-black break-words drop-shadow-[0_2px_10px_rgba(0,0,0,0.85)]"
+              style={{
+                color: currentStory.text_color || '#ffffff',
+                fontFamily: currentStory.text_font || 'inherit',
+              }}
+            >
+              {currentStory.caption}
+            </p>
+          </div>
+        )}
 
         {/* Footer / Reply */}
         <div className="absolute bottom-6 left-4 right-4 z-20 flex gap-3">
