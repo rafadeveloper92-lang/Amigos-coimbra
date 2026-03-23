@@ -13,6 +13,7 @@ import DirectMessagesView from './components/DirectMessagesView';
 import MessagesListView from './components/MessagesListView';
 import PostDetailView from './components/PostDetailView';
 import AdManager from './components/AdManager';
+import PwaInstallPrompt from './components/PwaInstallPrompt';
 import { useAuth } from './contexts/AuthContext';
 import { dataService } from './services/dataService';
 import { motion } from 'motion/react';
@@ -98,7 +99,12 @@ export default function App() {
   }
 
   if (!user) {
-    return <Auth />;
+    return (
+      <>
+        <Auth />
+        <PwaInstallPrompt />
+      </>
+    );
   }
 
   // Se houver erro crítico no perfil (ex: tabela não existe)
@@ -124,7 +130,12 @@ export default function App() {
 
   // Se o usuário está logado mas não tem perfil completo, redireciona para o setup
   if (!profile) {
-    return <ProfileSetup />;
+    return (
+      <>
+        <ProfileSetup />
+        <PwaInstallPrompt />
+      </>
+    );
   }
 
   const renderView = () => {
@@ -247,6 +258,7 @@ export default function App() {
 
       {/* Mobile Bottom Navigation */}
       <BottomNav currentView={currentView} onNavigate={handleNavigate} />
+      <PwaInstallPrompt />
     </div>
   );
 }

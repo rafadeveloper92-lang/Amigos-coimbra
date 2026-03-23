@@ -15,10 +15,15 @@ export default defineConfig(({mode}) => {
       VitePWA({
         registerType: 'autoUpdate',
         manifest: {
-          name: 'CineStream Pro',
-          short_name: 'CineStream',
-          description: 'Seu app de streaming favorito',
-          theme_color: '#141414',
+          name: 'Amigos Coimbra',
+          short_name: 'Amigos',
+          description: 'Rede social Amigos Coimbra',
+          start_url: basePath,
+          scope: basePath,
+          display: 'standalone',
+          orientation: 'portrait',
+          background_color: '#0f172a',
+          theme_color: '#0f172a',
           icons: [
             {
               src: 'pwa-192x192.png',

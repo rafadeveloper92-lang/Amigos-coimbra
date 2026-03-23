@@ -219,10 +219,45 @@ export const dataService = {
 
   async setStoryLike(storyId: string, userId: string, like: boolean) {
     if (like) {
+      const { data: existingLike } = await supabase
+        .from('story_reactions')
+        .select('id')
+        .eq('story_id', storyId)
+        .eq('user_id', userId)
+        .maybeSingle();
+
       const { error } = await supabase
         .from('story_reactions')
         .upsert([{ story_id: storyId, user_id: userId }], { onConflict: 'story_id,user_id' });
       if (error) throw error;
+
+      // Notifica o dono do story apenas na primeira curtida do usuário.
+      if (!existingLike?.id) {
+        try {
+          const { data: storyRow } = await supabase
+            .from('stories')
+            .select('user_id')
+            .eq('id', storyId)
+            .maybeSingle();
+
+          const ownerId = (storyRow as any)?.user_id as string | undefined;
+          if (ownerId && ownerId !== userId) {
+            const likerProfile = await this.getUserProfile(userId);
+            const likerName = likerProfile?.username
+              || `${likerProfile?.first_name || ''} ${likerProfile?.last_name || ''}`.trim()
+              || 'Alguém';
+
+            await this.createNotification(
+              ownerId,
+              'like',
+              `${likerName} curtiu seu story!`,
+              { from_id: userId, link_to: 'feed', story_id: storyId }
+            );
+          }
+        } catch (notifyError) {
+          console.warn('Falha ao notificar curtida em story:', notifyError);
+        }
+      }
       return true;
     }
 
@@ -243,6 +278,32 @@ export const dataService = {
       .from('story_comments')
       .insert([{ story_id: storyId, user_id: userId, content: value }]);
     if (error) throw error;
+
+    // Notifica o dono do story sobre novo comentário.
+    try {
+      const { data: storyRow } = await supabase
+        .from('stories')
+        .select('user_id')
+        .eq('id', storyId)
+        .maybeSingle();
+
+      const ownerId = (storyRow as any)?.user_id as string | undefined;
+      if (ownerId && ownerId !== userId) {
+        const commenterProfile = await this.getUserProfile(userId);
+        const commenterName = commenterProfile?.username
+          || `${commenterProfile?.first_name || ''} ${commenterProfile?.last_name || ''}`.trim()
+          || 'Alguém';
+
+        await this.createNotification(
+          ownerId,
+          'comment',
+          `${commenterName} comentou no seu story!`,
+          { from_id: userId, link_to: 'feed', story_id: storyId }
+        );
+      }
+    } catch (notifyError) {
+      console.warn('Falha ao notificar comentário em story:', notifyError);
+    }
     return true;
   },
 
