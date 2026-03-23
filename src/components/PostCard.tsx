@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { ThumbsUp, MessageCircle, Share2, MoreHorizontal, Send, Trash2, Flag, X, LogOut, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
+import { ThumbsUp, MessageCircle, Share2, MoreHorizontal, Send, Trash2, Flag, X, LogOut, ZoomIn, ZoomOut, RotateCcw, Heart } from 'lucide-react';
 import { dataService } from '../services/dataService';
 import { Comment, Friend } from '../types';
 import { supabase } from '../services/supabaseClient';
@@ -38,6 +38,9 @@ const REACTIONS = [
   { id: 'angry', emoji: '😡', label: 'Raiva', color: 'text-orange-600' },
   { id: 'wow', emoji: '😮', label: 'Uau', color: 'text-yellow-400' },
 ];
+
+const QUICK_COMMENT_EMOJIS = ['❤️', '🙌', '🔥', '👏', '🥺', '😍', '😮', '😂'];
+
 export default function PostCard({ id, userId, author, author_avatar, group, time, content, image, media_type, likes: initialLikes, comments: initialComments, reaction_counts: initialReactionCounts, isNews, userReaction, autoOpenComments, onDelete, onViewProfile, onSendMessage }: PostProps) {
   const [likes, setLikes] = useState(initialLikes);
   const [reactionCounts, setReactionCounts] = useState<Record<string, number>>(initialReactionCounts || {});
@@ -56,6 +59,8 @@ export default function PostCard({ id, userId, author, author_avatar, group, tim
   const [isVideoMuted, setIsVideoMuted] = useState(true);
   const [isVideoInView, setIsVideoInView] = useState(false);
   const [showSendToFriendModal, setShowSendToFriendModal] = useState(false);
+  const [showFullscreenComments, setShowFullscreenComments] = useState(false);
+  const [fullscreenComment, setFullscreenComment] = useState('');
   const [friends, setFriends] = useState<Friend[]>([]);
   const [isLoadingFriends, setIsLoadingFriends] = useState(false);
   const [sendingFriendId, setSendingFriendId] = useState<string | null>(null);
@@ -66,6 +71,7 @@ export default function PostCard({ id, userId, author, author_avatar, group, tim
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const fullscreenVideoRef = useRef<HTMLVideoElement | null>(null);
   const mediaContainerRef = useRef<HTMLDivElement | null>(null);
+  const fullscreenCommentInputRef = useRef<HTMLInputElement | null>(null);
 
   const getAvatarUrl = (url?: string, seed?: string) => {
     if (url) return url;
@@ -87,6 +93,12 @@ export default function PostCard({ id, userId, author, author_avatar, group, tim
     if (!normalized) return '@amigoscoimbra';
     return normalized.startsWith('@') ? normalized : `@${normalized}`;
   };
+
+  const fetchComments = useCallback(async () => {
+    const data = await dataService.getComments(id);
+    setComments(data);
+    setCommentsCount(data.length);
+  }, [id]);
 
   useEffect(() => {
     if (!isVideoMedia) return;
@@ -160,10 +172,10 @@ export default function PostCard({ id, userId, author, author_avatar, group, tim
     const getInitialCount = async () => {
       const data = await dataService.getComments(id);
       setCommentsCount(data.length);
-      if (showComments) setComments(data);
+      if (showComments || showFullscreenComments) setComments(data);
     };
     getInitialCount();
-  }, [id, showComments]);
+  }, [id, showComments, showFullscreenComments]);
 
   useEffect(() => {
     // Realtime listener for post updates (likes, reactions, comments)
@@ -185,7 +197,7 @@ export default function PostCard({ id, userId, author, author_avatar, group, tim
   }, [id]);
 
   useEffect(() => {
-    if (showComments) {
+    if (showComments || showFullscreenComments) {
       const subscription = supabase
         .channel(`comments_${id}`)
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'comments', filter: `post_id=eq.${id}` }, () => {
@@ -197,7 +209,7 @@ export default function PostCard({ id, userId, author, author_avatar, group, tim
         supabase.removeChannel(subscription);
       };
     }
-  }, [showComments, id]);
+  }, [showComments, showFullscreenComments, id, fetchComments]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -208,12 +220,6 @@ export default function PostCard({ id, userId, author, author_avatar, group, tim
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
-
-  const fetchComments = async () => {
-    const data = await dataService.getComments(id);
-    setComments(data);
-    setCommentsCount(data.length);
-  };
 
   const handleLike = async () => {
     if (showReactions) return;
@@ -330,6 +336,37 @@ export default function PostCard({ id, userId, author, author_avatar, group, tim
     }
   };
 
+  const openFullscreenComments = useCallback(async () => {
+    setShowFullscreenComments(true);
+    if (comments.length === 0) {
+      await fetchComments();
+    }
+    setTimeout(() => {
+      fullscreenCommentInputRef.current?.focus();
+    }, 180);
+  }, [comments.length, fetchComments]);
+
+  const closeFullscreenComments = useCallback(() => {
+    setShowFullscreenComments(false);
+  }, []);
+
+  const handleFullscreenCommentSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!fullscreenComment.trim() || isSubmittingComment) return;
+
+    setIsSubmittingComment(true);
+    try {
+      const userName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Usuário';
+      await dataService.commentPost(id, userName, fullscreenComment, user?.id);
+      setFullscreenComment('');
+      await fetchComments();
+    } catch (error) {
+      console.error('Erro ao comentar no fullscreen:', error);
+    } finally {
+      setIsSubmittingComment(false);
+    }
+  };
+
   const handleShare = async () => {
     const shareData = {
       title: `Post de ${author} no CineStream Pro`,
@@ -395,6 +432,14 @@ export default function PostCard({ id, userId, author, author_avatar, group, tim
       setShowOptions(false);
     }
   };
+
+  const closeFullscreenViewer = useCallback(() => {
+    setShowFullscreenComments(false);
+    setIsFullscreen(false);
+    if (fullscreenVideoRef.current) {
+      fullscreenVideoRef.current.pause();
+    }
+  }, []);
 
   const isAuthor = user?.id === userId;
 
@@ -599,7 +644,7 @@ export default function PostCard({ id, userId, author, author_avatar, group, tim
             <div className="absolute top-0 left-0 right-0 p-4 flex items-center justify-between z-[210] bg-gradient-to-b from-black/50 to-transparent">
               <div className="flex items-center gap-4">
                 <button
-                  onClick={() => setIsFullscreen(false)}
+                  onClick={closeFullscreenViewer}
                   className="p-2 text-white hover:bg-white/10 rounded-full transition-colors"
                 >
                   <X className="w-6 h-6" />
@@ -677,12 +722,12 @@ export default function PostCard({ id, userId, author, author_avatar, group, tim
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[220] bg-black/95 flex flex-col items-center justify-center backdrop-blur-md"
+            className="fixed inset-0 z-[220] bg-black/95 flex flex-col backdrop-blur-md overflow-hidden"
           >
-            <div className="absolute top-0 left-0 right-0 p-4 flex items-center justify-between z-[230] bg-gradient-to-b from-black/60 to-transparent">
-              <div className="flex items-center gap-4">
+            <div className="absolute top-0 left-0 right-0 p-4 flex items-center justify-between z-[235] bg-gradient-to-b from-black/60 to-transparent">
+              <div className="flex items-center gap-3">
                 <button
-                  onClick={() => setIsFullscreen(false)}
+                  onClick={closeFullscreenViewer}
                   className="p-2 text-white hover:bg-white/10 rounded-full transition-colors"
                 >
                   <X className="w-6 h-6" />
@@ -692,29 +737,58 @@ export default function PostCard({ id, userId, author, author_avatar, group, tim
                   <p className="text-[10px] opacity-70">{time}</p>
                 </div>
               </div>
-              <button
-                onClick={() => openSendToFriendModal()}
-                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/15 border border-white/20 text-white text-xs font-bold"
-              >
-                <Send className="w-3.5 h-3.5" />
-                Enviar
-              </button>
             </div>
 
-            <div className="w-full h-full flex items-center justify-center p-4">
-              <video
-                ref={fullscreenVideoRef}
-                src={image}
-                autoPlay
-                loop
-                playsInline
-                controls
-                muted={isVideoMuted}
-                className="w-full max-h-[86vh] object-contain rounded-xl"
-              />
+            <div className={`relative w-full transition-all duration-300 ${showFullscreenComments ? 'h-[34vh] pt-14' : 'h-full pt-14'}`}>
+              <div className="w-full h-full flex items-center justify-center px-2 sm:px-4 pb-3">
+                <video
+                  ref={fullscreenVideoRef}
+                  src={image}
+                  autoPlay
+                  loop
+                  playsInline
+                  muted={isVideoMuted}
+                  className="w-full h-full object-contain rounded-2xl"
+                />
+              </div>
+
+              <div className={`absolute right-3 bottom-5 z-[236] flex flex-col items-center gap-4 transition-opacity ${showFullscreenComments ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+                <button
+                  onClick={handleLike}
+                  className="flex flex-col items-center text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]"
+                >
+                  <Heart className={`w-8 h-8 ${isLiked ? 'fill-red-500 text-red-500' : 'text-white'}`} />
+                  <span className="text-[11px] font-bold mt-1">{likes}</span>
+                </button>
+                <button
+                  onClick={openFullscreenComments}
+                  className="flex flex-col items-center text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]"
+                >
+                  <MessageCircle className="w-8 h-8" />
+                  <span className="text-[11px] font-bold mt-1">{commentsCount}</span>
+                </button>
+                <button
+                  onClick={openSendToFriendModal}
+                  className="flex flex-col items-center text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]"
+                >
+                  <Send className="w-8 h-8" />
+                  <span className="text-[11px] font-bold mt-1">Enviar</span>
+                </button>
+                <button
+                  onClick={handleShare}
+                  className="flex flex-col items-center text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]"
+                >
+                  <Share2 className="w-8 h-8" />
+                  <span className="text-[11px] font-bold mt-1">Partilhar</span>
+                </button>
+              </div>
+
+              <div className="absolute left-3 bottom-5 z-[236]">
+                <BrandWatermark compact handle={getPostHandle()} />
+              </div>
             </div>
 
-            <div className="absolute right-5 top-16 z-[230]">
+            <div className="absolute right-4 top-16 z-[236] flex items-center gap-2">
               <button
                 onClick={() => {
                   const nextMuted = !isVideoMuted;
@@ -735,9 +809,96 @@ export default function PostCard({ id, userId, author, author_avatar, group, tim
               </button>
             </div>
 
-            <div className="absolute right-4 bottom-4 z-[230]">
-              <BrandWatermark compact handle={getPostHandle()} />
-            </div>
+            <AnimatePresence>
+              {showFullscreenComments && (
+                <motion.div
+                  initial={{ y: '100%', opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  exit={{ y: '100%', opacity: 0 }}
+                  transition={{ type: 'spring', stiffness: 280, damping: 28 }}
+                  className="absolute inset-x-0 bottom-0 h-[66vh] rounded-t-[28px] bg-[#161922] border-t border-white/10 z-[237] flex flex-col"
+                >
+                  <div className="pt-2 pb-3 px-4 border-b border-white/10">
+                    <div className="w-10 h-1 rounded-full bg-white/30 mx-auto mb-2" />
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-white text-base font-bold">Comentários</h3>
+                      <button
+                        onClick={closeFullscreenComments}
+                        className="p-1.5 rounded-full text-white/80 hover:bg-white/10"
+                      >
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+                    {comments.length > 0 ? (
+                      comments.map((comment) => (
+                        <div key={comment.id} className="flex gap-3">
+                          <img
+                            src={getAvatarUrl(comment.author_avatar, comment.author)}
+                            alt={comment.author}
+                            className="w-9 h-9 rounded-full object-cover flex-shrink-0"
+                          />
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <p className="text-[13px] font-semibold text-white">{comment.author}</p>
+                              <span className="text-[10px] text-white/50">
+                                {new Date(comment.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            </div>
+                            <p className="text-sm text-white/90 break-words">{comment.content}</p>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-center text-sm text-white/55 py-6">Nenhum comentário ainda. Seja o primeiro!</p>
+                    )}
+                  </div>
+
+                  <div className="px-3 pt-2 pb-1 border-t border-white/10">
+                    <div className="flex items-center justify-between gap-1 overflow-x-auto pb-2">
+                      {QUICK_COMMENT_EMOJIS.map((emoji) => (
+                        <button
+                          key={emoji}
+                          onClick={() => setFullscreenComment((prev) => `${prev}${emoji}`)}
+                          className="text-2xl leading-none px-2 py-1 rounded-xl hover:bg-white/10 flex-shrink-0"
+                        >
+                          {emoji}
+                        </button>
+                      ))}
+                    </div>
+
+                    <form onSubmit={handleFullscreenCommentSubmit} className="flex items-center gap-2 pb-[max(8px,env(safe-area-inset-bottom))]">
+                      <img
+                        src={getAvatarUrl(profile?.avatar_url, profile?.username || user?.email)}
+                        alt="Me"
+                        className="w-8 h-8 rounded-full object-cover flex-shrink-0"
+                      />
+                      <div className="relative flex-1">
+                        <input
+                          ref={fullscreenCommentInputRef}
+                          type="text"
+                          value={fullscreenComment}
+                          onChange={(e) => setFullscreenComment(e.target.value)}
+                          placeholder="O que pensas disto?"
+                          className="w-full bg-white/10 border border-white/20 rounded-full py-2.5 pl-4 pr-11 text-sm text-white placeholder:text-white/55 focus:outline-none focus:ring-2 focus:ring-white/30"
+                        />
+                        <button
+                          type="submit"
+                          disabled={!fullscreenComment.trim() || isSubmittingComment}
+                          className={`absolute right-1 top-1/2 -translate-y-1/2 p-2 rounded-full transition-colors ${
+                            !fullscreenComment.trim() || isSubmittingComment ? 'text-white/35' : 'text-white hover:bg-white/15'
+                          }`}
+                        >
+                          <Send className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </motion.div>
         )}
       </AnimatePresence>
