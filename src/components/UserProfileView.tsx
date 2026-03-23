@@ -1000,72 +1000,130 @@ export default function UserProfileView({ onEdit, userId, onSendMessage }: UserP
               )}
 
               {albumItems.length > 0 ? (
-                <div className="grid grid-cols-2 md:grid-cols-3 auto-rows-[110px] md:auto-rows-[130px] gap-2">
-                  {albumItems.map((item, index) => (
-                    <button
-                      key={item.id}
-                      onClick={() => setSelectedAlbumItem(item)}
-                      className={`relative overflow-hidden rounded-2xl border ${isDark ? 'border-white/15' : 'border-slate-100'} ${getAlbumTileClass(index, albumItems.length)}`}
-                      style={item.accent_color ? { boxShadow: `inset 0 0 0 1px ${item.accent_color}55` } : undefined}
-                    >
-                      {item.media_type === 'video' ? (
-                        <video
-                          src={item.media_url}
-                          muted
-                          playsInline
-                          preload="metadata"
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <img src={item.media_url} alt="Álbum" className="w-full h-full object-cover" />
-                      )}
-
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/10" />
-
-                      <div className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-black/45 px-2 py-1 text-[10px] text-white font-bold">
-                        {item.media_type === 'video' ? (
-                          <>
-                            <Play className="w-3 h-3 fill-white" />
-                            Vídeo
-                          </>
-                        ) : (
-                          'Foto'
-                        )}
+                <div className="space-y-3">
+                  <button
+                    onClick={() => setSelectedAlbumItem(albumItems[0])}
+                    className={`relative w-full h-52 md:h-64 rounded-2xl overflow-hidden border ${isDark ? 'border-[#d7bb76]/35' : 'border-slate-200'}`}
+                    style={albumItems[0].accent_color ? { boxShadow: `inset 0 0 0 1px ${albumItems[0].accent_color}66` } : undefined}
+                  >
+                    {albumItems[0].media_type === 'video' ? (
+                      <video
+                        src={albumItems[0].media_url}
+                        muted
+                        playsInline
+                        preload="metadata"
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <img src={albumItems[0].media_url} alt="Capa do álbum" className="w-full h-full object-cover" />
+                    )}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-black/10" />
+                    <div className="absolute left-3 right-3 bottom-3 flex items-end justify-between gap-3">
+                      <div className="text-left">
+                        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#f3dd9b]">Amigos Magazine</p>
+                        <p className="text-sm md:text-base font-black text-white truncate">@{username} • Edição Premium</p>
+                        <p className="text-[11px] text-white/80">
+                          {new Date(albumItems[0].created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' })}
+                        </p>
                       </div>
+                      {albumItems[0].media_type === 'video' && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-black/45 px-2.5 py-1 text-[10px] font-bold text-white">
+                          <Play className="w-3 h-3 fill-white" />
+                          Vídeo
+                        </span>
+                      )}
+                    </div>
+                  </button>
 
-                      {isOwnProfile && (
+                  {albumItems.length > 1 && (
+                    <div className="grid grid-cols-3 gap-2">
+                      {albumItems.slice(1, 4).map((item) => (
                         <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteAlbumItem(item.id);
-                          }}
-                          className="absolute right-2 top-2 p-1.5 rounded-full bg-black/55 text-white hover:bg-black/75"
-                          title="Excluir item"
+                          key={`editorial-${item.id}`}
+                          onClick={() => setSelectedAlbumItem(item)}
+                          className={`relative h-24 md:h-28 rounded-xl overflow-hidden border ${isDark ? 'border-white/15' : 'border-slate-100'}`}
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
+                          {item.media_type === 'video' ? (
+                            <video src={item.media_url} muted playsInline preload="metadata" className="w-full h-full object-cover" />
+                          ) : (
+                            <img src={item.media_url} alt="Editorial" className="w-full h-full object-cover" />
+                          )}
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/55 to-transparent" />
+                          <div className="absolute left-1.5 bottom-1.5 text-[9px] font-black uppercase tracking-wider text-white/90">
+                            Editorial
+                          </div>
                         </button>
-                      )}
-
-                      <div className="absolute left-2 right-2 bottom-2 flex items-center justify-between">
-                        <span className="text-[10px] font-bold text-white/90">
-                          #{index + 1}
-                        </span>
-                        <span className="text-[10px] font-semibold text-white/80">
-                          {new Date(item.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
-                        </span>
-                      </div>
-                    </button>
-                  ))}
-
-                  {isOwnProfile && albumItems.length < ALBUM_MAX_ITEMS && (
-                    <button
-                      onClick={() => albumUploadInputRef.current?.click()}
-                      className={`rounded-2xl border-2 border-dashed transition-colors flex flex-col items-center justify-center gap-1 ${isDark ? 'border-white/25 bg-white/5 hover:bg-white/10 text-slate-200' : 'border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-600'}`}
-                    >
-                      <Plus className="w-5 h-5" />
-                      <span className="text-[11px] font-bold">Adicionar</span>
-                    </button>
+                      ))}
+                    </div>
                   )}
+
+                  <div className="grid grid-cols-2 md:grid-cols-3 auto-rows-[110px] md:auto-rows-[130px] gap-2">
+                    {albumItems.slice(1).map((item, index) => (
+                      <button
+                        key={item.id}
+                        onClick={() => setSelectedAlbumItem(item)}
+                        className={`relative overflow-hidden rounded-2xl border ${isDark ? 'border-white/15' : 'border-slate-100'} ${getAlbumTileClass(index, Math.max(1, albumItems.length - 1))}`}
+                        style={item.accent_color ? { boxShadow: `inset 0 0 0 1px ${item.accent_color}55` } : undefined}
+                      >
+                        {item.media_type === 'video' ? (
+                          <video
+                            src={item.media_url}
+                            muted
+                            playsInline
+                            preload="metadata"
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <img src={item.media_url} alt="Álbum" className="w-full h-full object-cover" />
+                        )}
+
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/10" />
+
+                        <div className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-black/45 px-2 py-1 text-[10px] text-white font-bold">
+                          {item.media_type === 'video' ? (
+                            <>
+                              <Play className="w-3 h-3 fill-white" />
+                              Vídeo
+                            </>
+                          ) : (
+                            'Foto'
+                          )}
+                        </div>
+
+                        {isOwnProfile && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteAlbumItem(item.id);
+                            }}
+                            className="absolute right-2 top-2 p-1.5 rounded-full bg-black/55 text-white hover:bg-black/75"
+                            title="Excluir item"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+
+                        <div className="absolute left-2 right-2 bottom-2 flex items-center justify-between">
+                          <span className="text-[10px] font-bold text-white/90">
+                            #{index + 2}
+                          </span>
+                          <span className="text-[10px] font-semibold text-white/80">
+                            {new Date(item.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
+                          </span>
+                        </div>
+                      </button>
+                    ))}
+
+                    {isOwnProfile && albumItems.length < ALBUM_MAX_ITEMS && (
+                      <button
+                        onClick={() => albumUploadInputRef.current?.click()}
+                        className={`rounded-2xl border-2 border-dashed transition-colors flex flex-col items-center justify-center gap-1 ${isDark ? 'border-white/25 bg-white/5 hover:bg-white/10 text-slate-200' : 'border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-600'}`}
+                      >
+                        <Plus className="w-5 h-5" />
+                        <span className="text-[11px] font-bold">Adicionar</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
               ) : (
                 <div className={`rounded-2xl border p-10 text-center ${isDark ? 'border-white/15 bg-white/5 text-slate-300' : 'border-slate-100 bg-slate-50 text-slate-500'}`}>
