@@ -1,0 +1,5 @@
+{
+  "name": "NEXUS Community Hub",
+  "description": "A social community platform for friends to share updates, join groups, and stay connected.",
+  "requestFramePermissions": ["microphone"]
+}
