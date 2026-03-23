@@ -373,6 +373,20 @@ export default function StoryViewer({ stories, initialIndex = 0, onClose, onOpen
     }
   };
 
+  const handleStoryTap = (direction: 'prev' | 'next') => {
+    // Instagram-like: primeiro toque no vídeo ativa áudio.
+    if (currentStory.media_type === 'video' && isVideoMuted) {
+      void toggleVideoSound();
+      return;
+    }
+
+    if (direction === 'prev') {
+      prevStory();
+      return;
+    }
+    nextStory();
+  };
+
   const storyId = currentStory.id;
   const isLiked = !!likedStories[storyId];
   const likesCount = likeCounts[storyId] || 0;
@@ -725,11 +739,17 @@ export default function StoryViewer({ stories, initialIndex = 0, onClose, onOpen
           <div className="absolute inset-0 flex">
             <div 
               className="w-1/3 h-full cursor-pointer" 
-              onClick={(e) => { e.stopPropagation(); prevStory(); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleStoryTap('prev');
+              }}
             />
             <div 
               className="w-2/3 h-full cursor-pointer" 
-              onClick={(e) => { e.stopPropagation(); nextStory(); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleStoryTap('next');
+              }}
             />
           </div>
         </div>
@@ -771,6 +791,18 @@ export default function StoryViewer({ stories, initialIndex = 0, onClose, onOpen
             <div className="bg-black/65 border border-white/20 text-white text-[10px] font-semibold px-2 py-1 rounded-lg">
               {videoAudioHint}
             </div>
+          </div>
+        )}
+
+        {currentStory.media_type === 'video' && isVideoMuted && (
+          <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none">
+            <motion.div
+              className="bg-black/55 border border-white/25 rounded-full px-4 py-2 text-white text-xs font-bold"
+              animate={{ opacity: [0.55, 1, 0.55], scale: [1, 1.03, 1] }}
+              transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut' }}
+            >
+              Toque no vídeo para ativar o som
+            </motion.div>
           </div>
         )}
 
