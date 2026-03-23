@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion } from 'motion/react';
+import { createPortal } from 'react-dom';
 import { X, ChevronLeft, ChevronRight, MoreVertical, Trash2, MapPin, Music, Play, Pause, Heart, MessageCircle, Send, Star, Volume2, VolumeX } from 'lucide-react';
 import { Story } from '../types';
 import { useAuth } from '../contexts/AuthContext';
@@ -566,7 +567,7 @@ export default function StoryViewer({ stories, initialIndex = 0, onClose, onOpen
     }
   };
 
-  return (
+  const viewerContent = (
     <motion.div 
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
@@ -981,4 +982,10 @@ export default function StoryViewer({ stories, initialIndex = 0, onClose, onOpen
       </button>
     </motion.div>
   );
+
+  if (typeof document === 'undefined') {
+    return viewerContent;
+  }
+
+  return createPortal(viewerContent, document.body);
 }
