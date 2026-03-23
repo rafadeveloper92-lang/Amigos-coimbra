@@ -1,6 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { X, ChevronLeft, ChevronRight, Plus, Trash2, MoreVertical } from 'lucide-react';
-import { motion } from 'motion/react';
 import { dataService } from '../services/dataService';
 import { HighlightItem } from '../types';
 import { supabase } from '../services/supabaseClient';
@@ -12,34 +11,64 @@ interface Props {
 }
 
 export default function HighlightViewer({ highlightId, isOwnProfile, onClose }: Props) {
+  const HIGHLIGHT_DURATION_MS = 5000;
   const [items, setItems] = useState<HighlightItem[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [progress, setProgress] = useState(0);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [showMenu, setShowMenu] = useState(false);
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
+  const progressTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const prevItem = useCallback(() => {
     if (currentIndex > 0) {
       setCurrentIndex(i => i - 1);
+      setProgress(0);
     }
   }, [currentIndex]);
 
   const nextItem = useCallback(() => {
     if (currentIndex < items.length - 1) {
       setCurrentIndex(i => i + 1);
+      setProgress(0);
     } else {
       onClose();
     }
   }, [currentIndex, items.length, onClose]);
 
   useEffect(() => {
+    if (progressTimerRef.current) {
+      clearInterval(progressTimerRef.current);
+      progressTimerRef.current = null;
+    }
+
     if (items.length === 0 || uploading) return;
-    
-    const timer = setInterval(nextItem, 5000); // Auto-advance every 5 seconds
-    return () => clearInterval(timer);
-  }, [nextItem, items.length, uploading, currentIndex]); // Added currentIndex to reset timer on manual change
+
+    const startTime = Date.now();
+    progressTimerRef.current = setInterval(() => {
+      const elapsed = Date.now() - startTime;
+      const newProgress = Math.min((elapsed / HIGHLIGHT_DURATION_MS) * 100, 100);
+
+      if (newProgress >= 100) {
+        if (progressTimerRef.current) {
+          clearInterval(progressTimerRef.current);
+          progressTimerRef.current = null;
+        }
+        nextItem();
+      } else {
+        setProgress(newProgress);
+      }
+    }, 50);
+
+    return () => {
+      if (progressTimerRef.current) {
+        clearInterval(progressTimerRef.current);
+        progressTimerRef.current = null;
+      }
+    };
+  }, [currentIndex, items.length, uploading, nextItem]);
 
   useEffect(() => {
     const fetchItems = async () => {
@@ -132,16 +161,16 @@ export default function HighlightViewer({ highlightId, isOwnProfile, onClose }: 
       <div className="absolute top-0 left-0 w-full p-2 flex gap-1 z-20">
         {items.map((_, index) => (
           <div key={index} className="flex-1 h-1 bg-gray-700/50 rounded-full overflow-hidden">
-            <motion.div
-              key={`${index}-${currentIndex}`} // Force re-render/reset animation
+            <div
               className="h-full bg-white"
-              initial={{ width: index < currentIndex ? '100%' : '0%' }}
-              animate={{
-                width: index < currentIndex ? '100%' : index === currentIndex ? '100%' : '0%'
-              }}
-              transition={{
-                duration: index === currentIndex ? 5 : 0,
-                ease: 'linear'
+              style={{
+                width:
+                  index < currentIndex
+                    ? '100%'
+                    : index === currentIndex
+                      ? `${progress}%`
+                      : '0%',
+                transition: index === currentIndex ? 'width 50ms linear' : 'none',
               }}
             />
           </div>
@@ -264,13 +293,13 @@ export default function HighlightViewer({ highlightId, isOwnProfile, onClose }: 
       )}
 
       {isOwnProfile && (
-        <div className="absolute bottom-4 left-4 z-[1000]">
+        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[1001]">
           <label 
-            className="bg-white text-nexus-blue px-4 py-2 rounded-lg font-bold cursor-pointer flex items-center gap-2"
+            className="bg-white/95 text-nexus-blue px-4 py-2 rounded-full font-bold cursor-pointer flex items-center gap-2 shadow-lg"
             onClick={(e) => e.stopPropagation()}
           >
             <Plus className="w-4 h-4" />
-            {uploading ? `Enviando (${uploadProgress}%)...` : 'Adicionar Foto'}
+            {uploading ? `Enviando (${uploadProgress}%)...` : 'Postar mais fotos'}
             <input type="file" accept="image/*" multiple onChange={handleAddPhotos} className="hidden" />
           </label>
         </div>
