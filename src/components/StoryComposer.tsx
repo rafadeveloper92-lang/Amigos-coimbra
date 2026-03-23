@@ -19,6 +19,7 @@ import {
   Star,
 } from 'lucide-react';
 import { supabase } from '../services/supabaseClient';
+import { dataService } from '../services/dataService';
 import { StorySticker } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -124,27 +125,6 @@ const STICKER_POSITIONS = [
   { x: 120, y: 140 },
 ];
 const TOP_MUSIC_TERMS = ['top brasil', 'viral brasil', 'pop hits', 'sertanejo', 'forró hits'];
-
-const getFavoritesStorageKey = (userId?: string) =>
-  `story_music_favorites_${userId || 'guest'}`;
-
-const readFavorites = (userId?: string): MusicTrack[] => {
-  if (typeof window === 'undefined') return [];
-  try {
-    const raw = localStorage.getItem(getFavoritesStorageKey(userId));
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed;
-  } catch {
-    return [];
-  }
-};
-
-const writeFavorites = (userId: string | undefined, tracks: MusicTrack[]) => {
-  if (typeof window === 'undefined') return;
-  localStorage.setItem(getFavoritesStorageKey(userId), JSON.stringify(tracks));
-};
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
@@ -404,7 +384,7 @@ export default function StoryComposer({
     setLocationTransform({ x: 0, y: -320, scale: 1 });
     setLocationSuggestions([]);
     setLocationLoading(false);
-    setFavoriteTracks(readFavorites(user?.id));
+    setFavoriteTracks([]);
 
     if (audioRef.current) {
       audioRef.current.pause();
@@ -412,6 +392,26 @@ export default function StoryComposer({
     }
     setPlayingTrackId(null);
   }, [isOpen, file, user?.id]);
+
+  useEffect(() => {
+    if (!isOpen || !user?.id) {
+      setFavoriteTracks([]);
+      return;
+    }
+
+    let cancelled = false;
+    const loadFavorites = async () => {
+      const tracks = await dataService.getFavoriteTracks(user.id);
+      if (!cancelled) {
+        setFavoriteTracks(tracks as MusicTrack[]);
+      }
+    };
+
+    void loadFavorites();
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, user?.id]);
 
   useEffect(() => {
     return () => {
@@ -597,22 +597,27 @@ export default function StoryComposer({
     }
   };
 
-  const handleSaveFavoriteTrack = (track: MusicTrack) => {
-    setFavoriteTracks((prev) => {
-      const exists = prev.some((item) => item.trackId === track.trackId);
-      if (exists) return prev;
-      const next = [track, ...prev].slice(0, 40);
-      writeFavorites(user?.id, next);
-      return next;
-    });
+  const handleSaveFavoriteTrack = async (track: MusicTrack) => {
+    if (!user?.id) return;
+    const exists = favoriteTracks.some((item) => item.trackId === track.trackId);
+    if (exists) return;
+
+    try {
+      await dataService.saveFavoriteTrack(user.id, track);
+      setFavoriteTracks((prev) => [track, ...prev].slice(0, 40));
+    } catch (error) {
+      console.error('Erro ao salvar música favorita:', error);
+    }
   };
 
-  const handleRemoveFavoriteTrack = (trackId: number) => {
-    setFavoriteTracks((prev) => {
-      const next = prev.filter((item) => item.trackId !== trackId);
-      writeFavorites(user?.id, next);
-      return next;
-    });
+  const handleRemoveFavoriteTrack = async (trackId: number) => {
+    if (!user?.id) return;
+    try {
+      await dataService.removeFavoriteTrack(user.id, trackId);
+      setFavoriteTracks((prev) => prev.filter((item) => item.trackId !== trackId));
+    } catch (error) {
+      console.error('Erro ao remover música favorita:', error);
+    }
   };
 
   const handleAddMention = (username: string) => {
@@ -1185,7 +1190,7 @@ export default function StoryComposer({
                               <p className="text-white/70 text-[11px] truncate">{track.artistName}</p>
                             </button>
                             <button
-                              onClick={() => handleRemoveFavoriteTrack(track.trackId)}
+                              onClick={() => { void handleRemoveFavoriteTrack(track.trackId); }}
                               className="text-amber-300 hover:text-amber-200"
                               title="Remover favorita"
                             >
@@ -1227,7 +1232,7 @@ export default function StoryComposer({
                           <p className="text-white/70 text-[11px] truncate">{track.artistName}</p>
                         </button>
                         <button
-                          onClick={() => handleSaveFavoriteTrack(track)}
+                          onClick={() => { void handleSaveFavoriteTrack(track); }}
                           className="text-amber-300 hover:text-amber-200 shrink-0"
                           title="Salvar favorita"
                         >

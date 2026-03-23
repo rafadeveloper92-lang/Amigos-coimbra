@@ -1,6 +1,30 @@
 import { supabase } from './supabaseClient';
 import { Post, Group, Friend, Ad, Story } from '../types';
 
+type StoryCommentRecord = {
+  id: string;
+  story_id: string;
+  user_id: string;
+  content: string;
+  created_at: string;
+  author_username?: string;
+  author_avatar_url?: string;
+};
+
+type StoryInteractionState = {
+  likesCount: number;
+  isLiked: boolean;
+  comments: StoryCommentRecord[];
+};
+
+type FavoriteTrackPayload = {
+  trackId: number;
+  trackName: string;
+  artistName?: string;
+  artworkUrl100?: string;
+  previewUrl?: string;
+};
+
 export const dataService = {
   async getStories(): Promise<Story[]> {
     const { data, error } = await supabase
@@ -108,6 +132,152 @@ export const dataService = {
       .from('stories')
       .delete()
       .eq('id', storyId);
+
+    if (error) throw error;
+    return true;
+  },
+
+  async getStoryInteractionState(storyId: string, viewerUserId?: string): Promise<StoryInteractionState> {
+    const result: StoryInteractionState = {
+      likesCount: 0,
+      isLiked: false,
+      comments: [],
+    };
+
+    const { data: reactionRows, error: reactionsError } = await supabase
+      .from('story_reactions')
+      .select('user_id')
+      .eq('story_id', storyId);
+
+    if (reactionsError) {
+      console.error('Error fetching story reactions:', reactionsError);
+    } else {
+      const rows = reactionRows || [];
+      result.likesCount = rows.length;
+      result.isLiked = !!viewerUserId && rows.some((row: any) => row.user_id === viewerUserId);
+    }
+
+    const { data: commentsRows, error: commentsError } = await supabase
+      .from('story_comments')
+      .select('id, story_id, user_id, content, created_at')
+      .eq('story_id', storyId)
+      .order('created_at', { ascending: true });
+
+    if (commentsError) {
+      console.error('Error fetching story comments:', commentsError);
+      return result;
+    }
+
+    const comments = (commentsRows || []) as StoryCommentRecord[];
+    if (comments.length === 0) return result;
+
+    const authorIds = Array.from(new Set(comments.map((comment) => comment.user_id).filter(Boolean)));
+    if (authorIds.length === 0) {
+      result.comments = comments;
+      return result;
+    }
+
+    const { data: profileRows, error: profileError } = await supabase
+      .from('profiles')
+      .select('id, username, avatar_url')
+      .in('id', authorIds);
+
+    if (profileError) {
+      console.error('Error fetching story comment profiles:', profileError);
+      result.comments = comments;
+      return result;
+    }
+
+    const profileMap = new Map((profileRows || []).map((profile: any) => [profile.id, profile]));
+    result.comments = comments.map((comment) => {
+      const profile = profileMap.get(comment.user_id);
+      return {
+        ...comment,
+        author_username: profile?.username || 'Usuário',
+        author_avatar_url: profile?.avatar_url || undefined,
+      };
+    });
+    return result;
+  },
+
+  async setStoryLike(storyId: string, userId: string, like: boolean) {
+    if (like) {
+      const { error } = await supabase
+        .from('story_reactions')
+        .upsert([{ story_id: storyId, user_id: userId }], { onConflict: 'story_id,user_id' });
+      if (error) throw error;
+      return true;
+    }
+
+    const { error } = await supabase
+      .from('story_reactions')
+      .delete()
+      .eq('story_id', storyId)
+      .eq('user_id', userId);
+    if (error) throw error;
+    return true;
+  },
+
+  async addStoryComment(storyId: string, userId: string, content: string) {
+    const value = content.trim();
+    if (!value) return false;
+
+    const { error } = await supabase
+      .from('story_comments')
+      .insert([{ story_id: storyId, user_id: userId, content: value }]);
+    if (error) throw error;
+    return true;
+  },
+
+  async getFavoriteTracks(userId: string): Promise<FavoriteTrackPayload[]> {
+    const { data, error } = await supabase
+      .from('favorite_tracks')
+      .select('track_id, track_name, artist_name, artwork_url, preview_url')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(60);
+
+    if (error) {
+      console.error('Error fetching favorite tracks:', error);
+      return [];
+    }
+
+    return (data || []).map((row: any) => ({
+      trackId: row.track_id,
+      trackName: row.track_name,
+      artistName: row.artist_name || undefined,
+      artworkUrl100: row.artwork_url || undefined,
+      previewUrl: row.preview_url || undefined,
+    }));
+  },
+
+  async saveFavoriteTrack(userId: string, track: FavoriteTrackPayload) {
+    if (!track.trackId || !track.trackName) return false;
+    const { error } = await supabase
+      .from('favorite_tracks')
+      .upsert(
+        [{
+          user_id: userId,
+          track_id: track.trackId,
+          track_name: track.trackName,
+          artist_name: track.artistName || null,
+          artwork_url: track.artworkUrl100 || null,
+          preview_url: track.previewUrl || null,
+          created_at: new Date().toISOString(),
+        }],
+        { onConflict: 'user_id,track_id' }
+      );
+
+    if (error) throw error;
+    return true;
+  },
+
+  async removeFavoriteTrack(userId: string, trackId: number) {
+    const { error } = await supabase
+      .from('favorite_tracks')
+      .delete()
+      .eq('user_id', userId)
+      .eq('track_id', trackId);
 
     if (error) throw error;
     return true;
@@ -459,9 +629,8 @@ export const dataService = {
       .eq('user_id', userId);
       
     if (error) {
-      console.warn('Tabela favorite_groups não encontrada, usando localStorage como fallback.');
-      const localFavs = localStorage.getItem(`fav_groups_${userId}`);
-      return localFavs ? JSON.parse(localFavs) : [];
+      console.error('Erro ao buscar grupos favoritos:', error);
+      return [];
     }
     return data.map(f => f.group_id);
   },
@@ -475,26 +644,13 @@ export const dataService = {
         .delete()
         .eq('user_id', userId)
         .eq('group_id', groupId);
-        
-      if (error) {
-        // Fallback to local storage
-        const localFavs = JSON.parse(localStorage.getItem(`fav_groups_${userId}`) || '[]');
-        localStorage.setItem(`fav_groups_${userId}`, JSON.stringify(localFavs.filter((id: number) => id !== groupId)));
-      }
+      if (error) throw error;
     } else {
       // Add favorite
       const { error } = await supabase
         .from('favorite_groups')
         .insert([{ user_id: userId, group_id: groupId }]);
-        
-      if (error) {
-        // Fallback to local storage
-        const localFavs = JSON.parse(localStorage.getItem(`fav_groups_${userId}`) || '[]');
-        if (!localFavs.includes(groupId)) {
-          localFavs.push(groupId);
-          localStorage.setItem(`fav_groups_${userId}`, JSON.stringify(localFavs));
-        }
-      }
+      if (error) throw error;
     }
     return true;
   },

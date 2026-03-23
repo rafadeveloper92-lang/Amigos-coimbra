@@ -14,11 +14,30 @@ interface StoryViewerProps {
 }
 
 interface FavoriteMusicTrack {
+  trackId: number;
   trackName: string;
   artistName?: string;
   artworkUrl100?: string;
   previewUrl?: string;
 }
+
+interface StoryCommentItem {
+  id: string;
+  content: string;
+  createdAt: string;
+  authorUsername?: string;
+  authorAvatarUrl?: string;
+}
+
+const toDeterministicTrackId = (title: string, artist?: string) => {
+  const source = `${title}::${artist || ''}`;
+  let hash = 0;
+  for (let i = 0; i < source.length; i += 1) {
+    hash = (hash << 5) - hash + source.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash) || 1;
+};
 
 export default function StoryViewer({ stories, initialIndex = 0, onClose }: StoryViewerProps) {
   const { user: authUser } = useAuth();
@@ -40,32 +59,12 @@ export default function StoryViewer({ stories, initialIndex = 0, onClose }: Stor
   const [nowTick, setNowTick] = useState(Date.now());
   const [likedStories, setLikedStories] = useState<Record<string, boolean>>({});
   const [likeCounts, setLikeCounts] = useState<Record<string, number>>({});
-  const [commentCounts, setCommentCounts] = useState<Record<string, number>>({});
   const [showComments, setShowComments] = useState(false);
-  const [commentsByStory, setCommentsByStory] = useState<Record<string, string[]>>({});
+  const [commentsByStory, setCommentsByStory] = useState<Record<string, StoryCommentItem[]>>({});
   const [commentInput, setCommentInput] = useState('');
   const [messageInput, setMessageInput] = useState('');
   const [favoriteTracks, setFavoriteTracks] = useState<FavoriteMusicTrack[]>([]);
-
-  const getInteractionKey = (suffix: string) =>
-    `story_interactions_${authUser?.id || 'guest'}_${suffix}`;
-  const getFavoriteMusicKey = () =>
-    `story_music_favorites_${authUser?.id || 'guest'}`;
-
-  const readJson = <T,>(key: string, fallback: T): T => {
-    if (typeof window === 'undefined') return fallback;
-    try {
-      const raw = localStorage.getItem(key);
-      return raw ? (JSON.parse(raw) as T) : fallback;
-    } catch {
-      return fallback;
-    }
-  };
-
-  const writeJson = <T,>(key: string, value: T) => {
-    if (typeof window === 'undefined') return;
-    localStorage.setItem(key, JSON.stringify(value));
-  };
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const currentStory = localStories[currentIndex];
   const user = currentStory?.profile;
@@ -77,6 +76,7 @@ export default function StoryViewer({ stories, initialIndex = 0, onClose }: Stor
     setProgress(0);
     setShowMenu(false);
     setDeleteError(null);
+    setActionError(null);
   }, [stories, initialIndex]);
 
   useEffect(() => {
@@ -91,11 +91,23 @@ export default function StoryViewer({ stories, initialIndex = 0, onClose }: Stor
   }, []);
 
   useEffect(() => {
-    setLikedStories(readJson(getInteractionKey('liked'), {}));
-    setLikeCounts(readJson(getInteractionKey('likes_count'), {}));
-    setCommentCounts(readJson(getInteractionKey('comments_count'), {}));
-    setCommentsByStory(readJson(getInteractionKey('comments'), {}));
-    setFavoriteTracks(readJson(getFavoriteMusicKey(), []));
+    if (!authUser?.id) {
+      setFavoriteTracks([]);
+      return;
+    }
+
+    let cancelled = false;
+    const loadFavorites = async () => {
+      const tracks = await dataService.getFavoriteTracks(authUser.id);
+      if (!cancelled) {
+        setFavoriteTracks(tracks as FavoriteMusicTrack[]);
+      }
+    };
+
+    void loadFavorites();
+    return () => {
+      cancelled = true;
+    };
   }, [authUser?.id]);
 
   useEffect(() => {
@@ -122,7 +134,36 @@ export default function StoryViewer({ stories, initialIndex = 0, onClose }: Stor
     setShowComments(false);
     setCommentInput('');
     setMessageInput('');
+    setActionError(null);
   }, [currentStory?.id]);
+
+  useEffect(() => {
+    if (!currentStory?.id) return;
+
+    let cancelled = false;
+    const loadInteractions = async () => {
+      const state = await dataService.getStoryInteractionState(currentStory.id, authUser?.id);
+      if (cancelled) return;
+
+      setLikedStories((prev) => ({ ...prev, [currentStory.id]: state.isLiked }));
+      setLikeCounts((prev) => ({ ...prev, [currentStory.id]: state.likesCount }));
+      setCommentsByStory((prev) => ({
+        ...prev,
+        [currentStory.id]: state.comments.map((comment) => ({
+          id: comment.id,
+          content: comment.content,
+          createdAt: comment.created_at,
+          authorUsername: comment.author_username,
+          authorAvatarUrl: comment.author_avatar_url,
+        })),
+      }));
+    };
+
+    void loadInteractions();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentStory?.id, authUser?.id]);
 
   useEffect(() => {
     return () => {
@@ -269,30 +310,56 @@ export default function StoryViewer({ stories, initialIndex = 0, onClose }: Stor
   const isLiked = !!likedStories[storyId];
   const likesCount = likeCounts[storyId] || 0;
   const comments = commentsByStory[storyId] || [];
-  const commentsCount = commentCounts[storyId] ?? comments.length;
+  const commentsCount = comments.length;
 
-  const handleToggleLike = () => {
-    const nextLiked = !isLiked;
-    const nextLikedStories = { ...likedStories, [storyId]: nextLiked };
-    const nextCount = Math.max(0, (likeCounts[storyId] || 0) + (nextLiked ? 1 : -1));
-    const nextLikeCounts = { ...likeCounts, [storyId]: nextCount };
-    setLikedStories(nextLikedStories);
-    setLikeCounts(nextLikeCounts);
-    writeJson(getInteractionKey('liked'), nextLikedStories);
-    writeJson(getInteractionKey('likes_count'), nextLikeCounts);
+  const refreshCurrentStoryInteractions = async () => {
+    const state = await dataService.getStoryInteractionState(storyId, authUser?.id);
+    setLikedStories((prev) => ({ ...prev, [storyId]: state.isLiked }));
+    setLikeCounts((prev) => ({ ...prev, [storyId]: state.likesCount }));
+    setCommentsByStory((prev) => ({
+      ...prev,
+      [storyId]: state.comments.map((comment) => ({
+        id: comment.id,
+        content: comment.content,
+        createdAt: comment.created_at,
+        authorUsername: comment.author_username,
+        authorAvatarUrl: comment.author_avatar_url,
+      })),
+    }));
   };
 
-  const handleAddComment = () => {
+  const handleToggleLike = async () => {
+    if (!authUser?.id) {
+      setActionError('Faça login para curtir stories.');
+      return;
+    }
+    setActionError(null);
+    try {
+      await dataService.setStoryLike(storyId, authUser.id, !isLiked);
+      await refreshCurrentStoryInteractions();
+    } catch (error) {
+      console.error('Erro ao curtir story:', error);
+      setActionError('Não foi possível atualizar a curtida.');
+    }
+  };
+
+  const handleAddComment = async () => {
     const content = commentInput.trim();
     if (!content) return;
-    const nextComments = [...comments, content];
-    const nextCommentsByStory = { ...commentsByStory, [storyId]: nextComments };
-    const nextCommentCounts = { ...commentCounts, [storyId]: nextComments.length };
-    setCommentsByStory(nextCommentsByStory);
-    setCommentCounts(nextCommentCounts);
-    setCommentInput('');
-    writeJson(getInteractionKey('comments'), nextCommentsByStory);
-    writeJson(getInteractionKey('comments_count'), nextCommentCounts);
+    if (!authUser?.id) {
+      setActionError('Faça login para comentar stories.');
+      return;
+    }
+
+    setActionError(null);
+    try {
+      await dataService.addStoryComment(storyId, authUser.id, content);
+      setCommentInput('');
+      await refreshCurrentStoryInteractions();
+    } catch (error) {
+      console.error('Erro ao comentar story:', error);
+      setActionError('Não foi possível enviar o comentário.');
+    }
   };
 
   const handleSendDirectMessage = async () => {
@@ -302,26 +369,43 @@ export default function StoryViewer({ stories, initialIndex = 0, onClose }: Stor
     setMessageInput('');
   };
 
-  const handleSaveFavoriteMusic = () => {
-    if (!currentStory.music_title) return;
-    const current = readJson<FavoriteMusicTrack[]>(getFavoriteMusicKey(), []);
-    const exists = current.some(
+  const handleSaveFavoriteMusic = async () => {
+    if (!authUser?.id || !currentStory.music_title) return;
+
+    const exists = favoriteTracks.some(
       (track) =>
         track.trackName === currentStory.music_title &&
         (track.artistName || '') === (currentStory.music_artist || '')
     );
-    if (exists) return;
-    const next = [
-      {
+    setActionError(null);
+    try {
+      if (exists) {
+        const existing = favoriteTracks.find(
+          (track) =>
+            track.trackName === currentStory.music_title &&
+            (track.artistName || '') === (currentStory.music_artist || '')
+        );
+        if (existing) {
+          await dataService.removeFavoriteTrack(authUser.id, existing.trackId);
+          setFavoriteTracks((prev) => prev.filter((track) => track.trackId !== existing.trackId));
+        }
+        return;
+      }
+
+      const nextTrack: FavoriteMusicTrack = {
+        trackId: toDeterministicTrackId(currentStory.music_title, currentStory.music_artist),
         trackName: currentStory.music_title,
         artistName: currentStory.music_artist,
         artworkUrl100: currentStory.music_cover_url,
         previewUrl: currentStory.music_preview_url,
-      },
-      ...current,
-    ].slice(0, 60);
-    setFavoriteTracks(next);
-    writeJson(getFavoriteMusicKey(), next);
+      };
+      await dataService.saveFavoriteTrack(authUser.id, nextTrack);
+      const latest = await dataService.getFavoriteTracks(authUser.id);
+      setFavoriteTracks(latest as FavoriteMusicTrack[]);
+    } catch (error) {
+      console.error('Erro ao salvar música favorita:', error);
+      setActionError('Não foi possível atualizar favoritas.');
+    }
   };
 
   return (
@@ -440,7 +524,7 @@ export default function StoryViewer({ stories, initialIndex = 0, onClose }: Stor
                 {isMusicPlaying ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
               </button>
             )}
-            <button onClick={handleSaveFavoriteMusic} title="Salvar música favorita" className="ml-1">
+            <button onClick={() => { void handleSaveFavoriteMusic(); }} title="Salvar música favorita" className="ml-1">
               <Star className={`w-3.5 h-3.5 ${isFavoriteMusic ? 'fill-current text-amber-300' : 'text-white'}`} />
             </button>
           </div>
@@ -486,6 +570,14 @@ export default function StoryViewer({ stories, initialIndex = 0, onClose }: Stor
           <div className="absolute top-24 left-4 right-4 z-20">
             <div className="bg-red-600/90 text-white text-xs font-semibold px-3 py-2 rounded-lg">
               {deleteError}
+            </div>
+          </div>
+        )}
+
+        {actionError && (
+          <div className="absolute top-36 left-4 right-4 z-20">
+            <div className="bg-red-600/90 text-white text-xs font-semibold px-3 py-2 rounded-lg">
+              {actionError}
             </div>
           </div>
         )}
@@ -588,7 +680,7 @@ export default function StoryViewer({ stories, initialIndex = 0, onClose }: Stor
             </button>
           </div>
           <button
-            onClick={handleToggleLike}
+            onClick={() => { void handleToggleLike(); }}
             className="p-2 rounded-full bg-black/40 text-white border border-white/20"
             title="Curtir"
           >
@@ -614,10 +706,18 @@ export default function StoryViewer({ stories, initialIndex = 0, onClose }: Stor
               {comments.length === 0 ? (
                 <p className="text-white/60 text-xs">Sem comentários ainda.</p>
               ) : (
-                comments.map((comment, idx) => (
-                  <p key={`${storyId}-comment-${idx}`} className="text-white text-xs bg-white/10 rounded-md px-2 py-1">
-                    {comment}
-                  </p>
+                comments.map((comment) => (
+                  <div key={comment.id} className="text-white text-xs bg-white/10 rounded-md px-2 py-1 flex items-start gap-2">
+                    <img
+                      src={comment.authorAvatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(comment.authorUsername || 'U')}`}
+                      alt={comment.authorUsername || 'Usuário'}
+                      className="w-5 h-5 rounded-full object-cover mt-0.5"
+                    />
+                    <p className="leading-4">
+                      <span className="font-bold mr-1">{comment.authorUsername || 'Usuário'}:</span>
+                      {comment.content}
+                    </p>
+                  </div>
                 ))
               )}
             </div>
@@ -629,7 +729,7 @@ export default function StoryViewer({ stories, initialIndex = 0, onClose }: Stor
                 className="flex-1 bg-white/10 border border-white/20 rounded-full px-3 py-1.5 text-white text-xs placeholder:text-white/60 focus:outline-none"
               />
               <button
-                onClick={handleAddComment}
+                onClick={() => { void handleAddComment(); }}
                 className="px-3 py-1.5 rounded-full bg-white text-slate-900 text-xs font-bold"
               >
                 Enviar

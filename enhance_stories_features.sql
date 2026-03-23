@@ -83,3 +83,118 @@ WHERE
 -- Índice auxiliar para leitura recente por usuário
 CREATE INDEX IF NOT EXISTS idx_stories_user_created_at
   ON public.stories (user_id, created_at DESC);
+
+-- =========================================================
+-- Recursos globais online (sem localStorage): reações,
+-- comentários e músicas favoritas dos stories.
+-- =========================================================
+
+CREATE TABLE IF NOT EXISTS public.story_reactions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  story_id UUID NOT NULL REFERENCES public.stories(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT story_reactions_unique_story_user UNIQUE (story_id, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS public.story_comments (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  story_id UUID NOT NULL REFERENCES public.stories(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  content TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT story_comments_content_not_empty CHECK (char_length(trim(content)) > 0)
+);
+
+CREATE TABLE IF NOT EXISTS public.favorite_tracks (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  track_id BIGINT NOT NULL,
+  track_name TEXT NOT NULL,
+  artist_name TEXT,
+  artwork_url TEXT,
+  preview_url TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT favorite_tracks_unique_user_track UNIQUE (user_id, track_id)
+);
+
+ALTER TABLE public.story_reactions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.story_comments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.favorite_tracks ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "story_reactions_select_all" ON public.story_reactions;
+CREATE POLICY "story_reactions_select_all"
+  ON public.story_reactions
+  FOR SELECT
+  USING (true);
+
+DROP POLICY IF EXISTS "story_reactions_insert_own" ON public.story_reactions;
+CREATE POLICY "story_reactions_insert_own"
+  ON public.story_reactions
+  FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "story_reactions_delete_own" ON public.story_reactions;
+CREATE POLICY "story_reactions_delete_own"
+  ON public.story_reactions
+  FOR DELETE
+  USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "story_comments_select_all" ON public.story_comments;
+CREATE POLICY "story_comments_select_all"
+  ON public.story_comments
+  FOR SELECT
+  USING (true);
+
+DROP POLICY IF EXISTS "story_comments_insert_own" ON public.story_comments;
+CREATE POLICY "story_comments_insert_own"
+  ON public.story_comments
+  FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "story_comments_update_own" ON public.story_comments;
+CREATE POLICY "story_comments_update_own"
+  ON public.story_comments
+  FOR UPDATE
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "story_comments_delete_own" ON public.story_comments;
+CREATE POLICY "story_comments_delete_own"
+  ON public.story_comments
+  FOR DELETE
+  USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "favorite_tracks_select_own" ON public.favorite_tracks;
+CREATE POLICY "favorite_tracks_select_own"
+  ON public.favorite_tracks
+  FOR SELECT
+  USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "favorite_tracks_insert_own" ON public.favorite_tracks;
+CREATE POLICY "favorite_tracks_insert_own"
+  ON public.favorite_tracks
+  FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "favorite_tracks_update_own" ON public.favorite_tracks;
+CREATE POLICY "favorite_tracks_update_own"
+  ON public.favorite_tracks
+  FOR UPDATE
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "favorite_tracks_delete_own" ON public.favorite_tracks;
+CREATE POLICY "favorite_tracks_delete_own"
+  ON public.favorite_tracks
+  FOR DELETE
+  USING (auth.uid() = user_id);
+
+CREATE INDEX IF NOT EXISTS idx_story_reactions_story_id
+  ON public.story_reactions (story_id);
+
+CREATE INDEX IF NOT EXISTS idx_story_comments_story_created
+  ON public.story_comments (story_id, created_at);
+
+CREATE INDEX IF NOT EXISTS idx_favorite_tracks_user_created
+  ON public.favorite_tracks (user_id, created_at DESC);
