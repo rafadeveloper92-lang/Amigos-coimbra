@@ -61,6 +61,7 @@ export default function PostCard({ id, userId, author, author_avatar, group, tim
   const [showSendToFriendModal, setShowSendToFriendModal] = useState(false);
   const [showFullscreenComments, setShowFullscreenComments] = useState(false);
   const [fullscreenComment, setFullscreenComment] = useState('');
+  const [commentLikePulse, setCommentLikePulse] = useState<Record<number, number>>({});
   const [friends, setFriends] = useState<Friend[]>([]);
   const [isLoadingFriends, setIsLoadingFriends] = useState(false);
   const [sendingFriendId, setSendingFriendId] = useState<string | null>(null);
@@ -72,6 +73,7 @@ export default function PostCard({ id, userId, author, author_avatar, group, tim
   const fullscreenVideoRef = useRef<HTMLVideoElement | null>(null);
   const mediaContainerRef = useRef<HTMLDivElement | null>(null);
   const fullscreenCommentInputRef = useRef<HTMLInputElement | null>(null);
+  const commentLikePulseTimeoutsRef = useRef<Record<number, ReturnType<typeof setTimeout>>>({});
 
   const getAvatarUrl = (url?: string, seed?: string) => {
     if (url) return url;
@@ -143,7 +145,30 @@ export default function PostCard({ id, userId, author, author_avatar, group, tim
       if (fullscreenVideoRef.current) {
         fullscreenVideoRef.current.pause();
       }
+      for (const key in commentLikePulseTimeoutsRef.current) {
+        clearTimeout(commentLikePulseTimeoutsRef.current[Number(key)]);
+      }
     };
+  }, []);
+
+  const triggerCommentLikePulse = useCallback((commentId: number) => {
+    setCommentLikePulse((prev) => ({
+      ...prev,
+      [commentId]: (prev[commentId] || 0) + 1,
+    }));
+
+    if (commentLikePulseTimeoutsRef.current[commentId]) {
+      clearTimeout(commentLikePulseTimeoutsRef.current[commentId]);
+    }
+
+    commentLikePulseTimeoutsRef.current[commentId] = setTimeout(() => {
+      setCommentLikePulse((prev) => {
+        const next = { ...prev };
+        delete next[commentId];
+        return next;
+      });
+      delete commentLikePulseTimeoutsRef.current[commentId];
+    }, 420);
   }, []);
 
   const fetchFriends = useCallback(async () => {
@@ -373,6 +398,9 @@ export default function PostCard({ id, userId, author, author_avatar, group, tim
       return;
     }
 
+    const current = comments.find((comment) => comment.id === commentId);
+    const willLike = !current?.liked_by_me;
+
     const previousComments = comments;
     setComments((prev) =>
       prev.map((comment) => {
@@ -386,6 +414,10 @@ export default function PostCard({ id, userId, author, author_avatar, group, tim
         };
       })
     );
+
+    if (willLike) {
+      triggerCommentLikePulse(commentId);
+    }
 
     try {
       const result = await dataService.toggleCommentLike(commentId, user.id);
@@ -891,15 +923,37 @@ export default function PostCard({ id, userId, author, author_avatar, group, tim
                               </div>
                               <p className="text-sm text-white/90 break-words">{comment.content}</p>
                             </div>
-                            <button
+                            <motion.button
                               onClick={() => handleToggleCommentLike(comment.id)}
                               className="flex flex-col items-center text-white/75 hover:text-white transition-colors pt-0.5"
+                              whileTap={{ scale: 0.9 }}
                             >
-                              <Heart className={`w-4 h-4 ${comment.liked_by_me ? 'fill-red-500 text-red-500' : ''}`} />
+                              <div className="relative">
+                                <AnimatePresence>
+                                  {(commentLikePulse[comment.id] || 0) > 0 && (
+                                    <motion.span
+                                      key={`comment-like-dark-ring-${comment.id}-${commentLikePulse[comment.id]}`}
+                                      initial={{ opacity: 0.65, scale: 0.55 }}
+                                      animate={{ opacity: 0, scale: 1.75 }}
+                                      exit={{ opacity: 0 }}
+                                      transition={{ duration: 0.36, ease: 'easeOut' }}
+                                      className="absolute inset-0 rounded-full border-2 border-red-400 pointer-events-none"
+                                    />
+                                  )}
+                                </AnimatePresence>
+                                <motion.div
+                                  key={`comment-like-dark-heart-${comment.id}-${commentLikePulse[comment.id] || 0}`}
+                                  initial={false}
+                                  animate={(commentLikePulse[comment.id] || 0) > 0 ? { scale: [1, 1.34, 1], rotate: [0, -7, 5, 0] } : { scale: 1, rotate: 0 }}
+                                  transition={{ duration: 0.34, ease: 'easeOut' }}
+                                >
+                                  <Heart className={`w-4 h-4 ${comment.liked_by_me ? 'fill-red-500 text-red-500' : ''}`} />
+                                </motion.div>
+                              </div>
                               <span className="text-[10px] mt-0.5 leading-none">
                                 {Number(comment.likes_count || 0)}
                               </span>
-                            </button>
+                            </motion.button>
                           </div>
                         </div>
                       ))
@@ -1141,15 +1195,37 @@ export default function PostCard({ id, userId, author, author_avatar, group, tim
                         </div>
                         <p className="text-xs text-slate-600">{comment.content}</p>
                       </div>
-                      <button
+                      <motion.button
                         onClick={() => handleToggleCommentLike(comment.id)}
                         className="flex flex-col items-center text-slate-400 hover:text-slate-700 transition-colors"
+                        whileTap={{ scale: 0.9 }}
                       >
-                        <Heart className={`w-4 h-4 ${comment.liked_by_me ? 'fill-red-500 text-red-500' : ''}`} />
+                        <div className="relative">
+                          <AnimatePresence>
+                            {(commentLikePulse[comment.id] || 0) > 0 && (
+                              <motion.span
+                                key={`comment-like-light-ring-${comment.id}-${commentLikePulse[comment.id]}`}
+                                initial={{ opacity: 0.6, scale: 0.55 }}
+                                animate={{ opacity: 0, scale: 1.7 }}
+                                exit={{ opacity: 0 }}
+                                transition={{ duration: 0.34, ease: 'easeOut' }}
+                                className="absolute inset-0 rounded-full border-2 border-red-400 pointer-events-none"
+                              />
+                            )}
+                          </AnimatePresence>
+                          <motion.div
+                            key={`comment-like-light-heart-${comment.id}-${commentLikePulse[comment.id] || 0}`}
+                            initial={false}
+                            animate={(commentLikePulse[comment.id] || 0) > 0 ? { scale: [1, 1.32, 1], rotate: [0, -7, 4, 0] } : { scale: 1, rotate: 0 }}
+                            transition={{ duration: 0.32, ease: 'easeOut' }}
+                          >
+                            <Heart className={`w-4 h-4 ${comment.liked_by_me ? 'fill-red-500 text-red-500' : ''}`} />
+                          </motion.div>
+                        </div>
                         <span className="text-[10px] mt-0.5 leading-none text-slate-500">
                           {Number(comment.likes_count || 0)}
                         </span>
-                      </button>
+                      </motion.button>
                     </div>
                   </div>
                 </div>
