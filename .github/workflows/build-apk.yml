@@ -4,7 +4,6 @@
 name: Build Android APK
 
 on:
-  # Corre manualmente: Actions → Build Android APK → Run workflow
   workflow_dispatch:
 
 jobs:
@@ -38,7 +37,14 @@ jobs:
       - name: Android SDK
         uses: android-actions/setup-android@v3
         with:
-          packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
+          packages: |
+            platform-tools
+            platforms;android-34
+            build-tools;34.0.0
+          log-accepted-android-sdk-licenses: true
+
+      - name: Gradle cache
+        uses: gradle/actions/setup-gradle@v4
 
       - name: Gradle assembleDebug
         working-directory: android
