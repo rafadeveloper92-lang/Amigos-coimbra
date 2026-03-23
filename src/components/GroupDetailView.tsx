@@ -237,11 +237,26 @@ export default function GroupDetailView({ group, onBack, onViewProfile, onSendMe
     setAnnouncementImages(prev => prev.filter((_, i) => i !== index));
   };
 
-  const fetchMessages = async () => {
-    const data = await dataService.getGroupMessages(group.id);
-    setMessages(data);
-    setLoading(false);
-    scrollToBottom();
+  const fetchMessages = async (silent = false) => {
+    try {
+      const data = await dataService.getGroupMessages(group.id);
+      setMessages(prev => {
+        // Evita render desnecessário quando o backend devolve a mesma lista.
+        const prevLastId = prev.length ? prev[prev.length - 1]?.id : null;
+        const nextLastId = data.length ? data[data.length - 1]?.id : null;
+        if (prev.length === data.length && prevLastId === nextLastId) {
+          return prev;
+        }
+        return data;
+      });
+      if (!silent) {
+        scrollToBottom();
+      }
+    } catch (error) {
+      console.error('Erro ao buscar mensagens do grupo:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const fetchMembers = async () => {
@@ -279,36 +294,44 @@ export default function GroupDetailView({ group, onBack, onViewProfile, onSendMe
   useEffect(() => {
     fetchMessages();
     fetchUserRole();
-    
+
     // Mark as read when entering
     if (user) {
       dataService.updateGroupLastRead(group.id, user.id);
     }
 
+    // Fallback para manter "quase realtime" mesmo quando Realtime do Supabase estiver desligado.
+    const pollIntervalId = window.setInterval(() => {
+      fetchMessages(true);
+    }, 3000);
+
+    let subscription: { unsubscribe: () => void } | null = null;
+
     // Realtime subscription for new messages
     if (supabase) {
-      const subscription = supabase
+      subscription = supabase
         .channel(`group_${group.id}`)
-        .on('postgres_changes', { 
-          event: 'INSERT', 
-          schema: 'public', 
+        .on('postgres_changes', {
+          event: 'INSERT',
+          schema: 'public',
           table: 'group_messages',
           filter: `group_id=eq.${group.id}`
         }, (payload) => {
           setMessages(prev => [...prev, payload.new]);
           scrollToBottom();
-          
+
           // Mark as read when a new message arrives and we are in the group
           if (user) {
             dataService.updateGroupLastRead(group.id, user.id);
           }
         })
         .subscribe();
-
-      return () => {
-        subscription.unsubscribe();
-      };
     }
+
+    return () => {
+      window.clearInterval(pollIntervalId);
+      subscription?.unsubscribe();
+    };
   }, [group.id, user]);
 
   const scrollToBottom = () => {
