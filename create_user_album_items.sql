@@ -8,11 +8,15 @@ CREATE TABLE IF NOT EXISTS public.user_album_items (
   media_type TEXT NOT NULL DEFAULT 'image' CHECK (media_type IN ('image', 'video')),
   caption TEXT,
   accent_color TEXT,
+  sort_order INTEGER,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_user_album_items_user_created
   ON public.user_album_items (user_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_user_album_items_user_sort
+  ON public.user_album_items (user_id, sort_order ASC);
 
 ALTER TABLE public.user_album_items ENABLE ROW LEVEL SECURITY;
 

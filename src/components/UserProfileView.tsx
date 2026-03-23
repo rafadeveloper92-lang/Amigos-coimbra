@@ -34,7 +34,11 @@ import {
   Upload,
   Trash2,
   Sparkles,
-  X
+  X,
+  Crown,
+  GripVertical,
+  ArrowUp,
+  ArrowDown
 } from 'lucide-react';
 import { nationalities, relationships } from './UserProfile';
 
@@ -64,6 +68,9 @@ export default function UserProfileView({ onEdit, userId, onSendMessage }: UserP
   const [albumUploading, setAlbumUploading] = useState(false);
   const [albumError, setAlbumError] = useState<string | null>(null);
   const [selectedAlbumItem, setSelectedAlbumItem] = useState<AlbumItem | null>(null);
+  const [isAlbumManageMode, setIsAlbumManageMode] = useState(false);
+  const [draggedAlbumItemId, setDraggedAlbumItemId] = useState<number | null>(null);
+  const [albumSavingLayout, setAlbumSavingLayout] = useState(false);
 
   const isOwnProfile = !userId || userId === currentUser?.id;
 
@@ -372,6 +379,88 @@ export default function UserProfileView({ onEdit, userId, onSendMessage }: UserP
       setAlbumError('Não foi possível excluir este item.');
     }
   };
+
+  const getSortedAlbumIds = (items: AlbumItem[]) => {
+    return items.map((item) => item.id);
+  };
+
+  const persistAlbumOrder = async (nextItems: AlbumItem[]) => {
+    if (!currentUser?.id || !isOwnProfile) return;
+    const orderedIds = getSortedAlbumIds(nextItems);
+    setAlbumSavingLayout(true);
+    try {
+      await dataService.reorderUserAlbumItems(currentUser.id, orderedIds);
+    } catch (error) {
+      console.error('Erro ao salvar ordem do álbum:', error);
+      setAlbumError('Não foi possível salvar a ordem do álbum.');
+      await refreshAlbumItems();
+    } finally {
+      setAlbumSavingLayout(false);
+    }
+  };
+
+  const handleSetAlbumCover = async (itemId: number) => {
+    if (!currentUser?.id || !isOwnProfile) return;
+    setAlbumSavingLayout(true);
+    setAlbumError(null);
+    try {
+      await dataService.setUserAlbumCover(currentUser.id, itemId);
+      await refreshAlbumItems();
+    } catch (error) {
+      console.error('Erro ao definir capa do álbum:', error);
+      setAlbumError('Não foi possível definir esta mídia como capa.');
+    } finally {
+      setAlbumSavingLayout(false);
+    }
+  };
+
+  const handleMoveAlbumItem = async (itemId: number, direction: 'up' | 'down') => {
+    const coverItem = albumItems[0];
+    const tail = albumItems.slice(1);
+    const currentIndex = tail.findIndex((item) => item.id === itemId);
+    if (currentIndex < 0) return;
+
+    const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+    if (targetIndex < 0 || targetIndex >= tail.length) return;
+
+    const reorderedTail = [...tail];
+    const [moved] = reorderedTail.splice(currentIndex, 1);
+    reorderedTail.splice(targetIndex, 0, moved);
+
+    const nextItems = coverItem ? [coverItem, ...reorderedTail] : reorderedTail;
+    setAlbumItems(nextItems);
+    await persistAlbumOrder(nextItems);
+  };
+
+  const handleAlbumDragStart = (itemId: number) => {
+    setDraggedAlbumItemId(itemId);
+  };
+
+  const handleAlbumDragOver = (event: React.DragEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+  };
+
+  const handleAlbumDrop = async (targetItemId: number) => {
+    if (!draggedAlbumItemId || draggedAlbumItemId === targetItemId) return;
+
+    const coverItem = albumItems[0];
+    const tail = albumItems.slice(1);
+    const fromIndex = tail.findIndex((item) => item.id === draggedAlbumItemId);
+    const toIndex = tail.findIndex((item) => item.id === targetItemId);
+    if (fromIndex < 0 || toIndex < 0) return;
+
+    const reorderedTail = [...tail];
+    const [moved] = reorderedTail.splice(fromIndex, 1);
+    reorderedTail.splice(toIndex, 0, moved);
+
+    const nextItems = coverItem ? [coverItem, ...reorderedTail] : reorderedTail;
+    setAlbumItems(nextItems);
+    setDraggedAlbumItemId(null);
+    await persistAlbumOrder(nextItems);
+  };
+
+  const coverAlbumItem = albumItems[0] || null;
+  const nonCoverAlbumItems = albumItems.slice(1);
 
   return (
     <div className={`w-full max-w-4xl mx-auto pb-24 ${isDark ? 'profile-dark-moody' : ''}`}>
@@ -969,6 +1058,14 @@ export default function UserProfileView({ onEdit, userId, onSendMessage }: UserP
 
                 {isOwnProfile && (
                   <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setIsAlbumManageMode((prev) => !prev)}
+                      disabled={albumItems.length <= 1}
+                      className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border disabled:opacity-60 ${isDark ? 'bg-white/10 hover:bg-white/15 text-slate-100 border-white/20' : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'}`}
+                    >
+                      <GripVertical className="w-3.5 h-3.5" />
+                      {isAlbumManageMode ? 'Concluir ordem' : 'Organizar'}
+                    </button>
                     <input
                       ref={albumUploadInputRef}
                       type="file"
@@ -993,6 +1090,19 @@ export default function UserProfileView({ onEdit, userId, onSendMessage }: UserP
                 )}
               </div>
 
+              {albumSavingLayout && (
+                <div className={`mb-3 text-[11px] px-3 py-2 rounded-lg border inline-flex items-center gap-2 ${isDark ? 'bg-white/10 border-white/20 text-slate-200' : 'bg-slate-50 border-slate-200 text-slate-600'}`}>
+                  <div className="w-3.5 h-3.5 border-2 border-current/30 border-t-current rounded-full animate-spin" />
+                  Salvando organização do álbum...
+                </div>
+              )}
+
+              {isAlbumManageMode && (
+                <div className={`mb-3 text-[11px] px-3 py-2 rounded-lg border ${isDark ? 'bg-[#d7bb76]/10 border-[#d7bb76]/30 text-[#f3dd9b]' : 'bg-amber-50 border-amber-200 text-amber-700'}`}>
+                  Modo organizar ativo: arraste as miniaturas para reordenar. A capa fica fixa no topo.
+                </div>
+              )}
+
               {albumError && (
                 <div className={`mb-3 text-xs px-3 py-2 rounded-lg border ${isDark ? 'bg-red-500/10 border-red-400/30 text-red-300' : 'bg-red-50 border-red-200 text-red-600'}`}>
                   {albumError}
@@ -1001,43 +1111,53 @@ export default function UserProfileView({ onEdit, userId, onSendMessage }: UserP
 
               {albumItems.length > 0 ? (
                 <div className="space-y-3">
-                  <button
-                    onClick={() => setSelectedAlbumItem(albumItems[0])}
-                    className={`relative w-full h-52 md:h-64 rounded-2xl overflow-hidden border ${isDark ? 'border-[#d7bb76]/35' : 'border-slate-200'}`}
-                    style={albumItems[0].accent_color ? { boxShadow: `inset 0 0 0 1px ${albumItems[0].accent_color}66` } : undefined}
-                  >
-                    {albumItems[0].media_type === 'video' ? (
-                      <video
-                        src={albumItems[0].media_url}
-                        muted
-                        playsInline
-                        preload="metadata"
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <img src={albumItems[0].media_url} alt="Capa do álbum" className="w-full h-full object-cover" />
-                    )}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-black/10" />
-                    <div className="absolute left-3 right-3 bottom-3 flex items-end justify-between gap-3">
-                      <div className="text-left">
-                        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#f3dd9b]">Amigos Magazine</p>
-                        <p className="text-sm md:text-base font-black text-white truncate">@{username} • Edição Premium</p>
-                        <p className="text-[11px] text-white/80">
-                          {new Date(albumItems[0].created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' })}
-                        </p>
-                      </div>
-                      {albumItems[0].media_type === 'video' && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-black/45 px-2.5 py-1 text-[10px] font-bold text-white">
-                          <Play className="w-3 h-3 fill-white" />
-                          Vídeo
-                        </span>
+                  {coverAlbumItem && (
+                    <button
+                      onClick={() => setSelectedAlbumItem(coverAlbumItem)}
+                      className={`relative w-full h-52 md:h-64 rounded-2xl overflow-hidden border ${isDark ? 'border-[#d7bb76]/35' : 'border-slate-200'}`}
+                      style={coverAlbumItem.accent_color ? { boxShadow: `inset 0 0 0 1px ${coverAlbumItem.accent_color}66` } : undefined}
+                    >
+                      {coverAlbumItem.media_type === 'video' ? (
+                        <video
+                          src={coverAlbumItem.media_url}
+                          muted
+                          playsInline
+                          preload="metadata"
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <img src={coverAlbumItem.media_url} alt="Capa do álbum" className="w-full h-full object-cover" />
                       )}
-                    </div>
-                  </button>
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-black/10" />
+                      <div className="absolute left-3 right-3 bottom-3 flex items-end justify-between gap-3">
+                        <div className="text-left">
+                          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#f3dd9b]">Amigos Magazine</p>
+                          <p className="text-sm md:text-base font-black text-white truncate">@{username} • Edição Premium</p>
+                          <p className="text-[11px] text-white/80">
+                            {new Date(coverAlbumItem.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' })}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {coverAlbumItem.media_type === 'video' && (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-black/45 px-2.5 py-1 text-[10px] font-bold text-white">
+                              <Play className="w-3 h-3 fill-white" />
+                              Vídeo
+                            </span>
+                          )}
+                          {isOwnProfile && (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-[#d7bb76]/85 text-[#1e293b] px-2.5 py-1 text-[10px] font-black uppercase tracking-wider">
+                              <Crown className="w-3 h-3" />
+                              Capa
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </button>
+                  )}
 
-                  {albumItems.length > 1 && (
+                  {!isAlbumManageMode && nonCoverAlbumItems.length > 0 && (
                     <div className="grid grid-cols-3 gap-2">
-                      {albumItems.slice(1, 4).map((item) => (
+                      {nonCoverAlbumItems.slice(0, 3).map((item) => (
                         <button
                           key={`editorial-${item.id}`}
                           onClick={() => setSelectedAlbumItem(item)}
@@ -1058,10 +1178,17 @@ export default function UserProfileView({ onEdit, userId, onSendMessage }: UserP
                   )}
 
                   <div className="grid grid-cols-2 md:grid-cols-3 auto-rows-[110px] md:auto-rows-[130px] gap-2">
-                    {albumItems.slice(1).map((item, index) => (
+                    {(isAlbumManageMode ? nonCoverAlbumItems : nonCoverAlbumItems.slice(3)).map((item, index) => {
+                      const absoluteIndex = albumItems.findIndex((albumItem) => albumItem.id === item.id);
+                      return (
                       <button
                         key={item.id}
                         onClick={() => setSelectedAlbumItem(item)}
+                        draggable={isAlbumManageMode}
+                        onDragStart={() => handleAlbumDragStart(item.id)}
+                        onDragOver={handleAlbumDragOver}
+                        onDrop={() => handleAlbumDrop(item.id)}
+                        onDragEnd={() => setDraggedAlbumItemId(null)}
                         className={`relative overflow-hidden rounded-2xl border ${isDark ? 'border-white/15' : 'border-slate-100'} ${getAlbumTileClass(index, Math.max(1, albumItems.length - 1))}`}
                         style={item.accent_color ? { boxShadow: `inset 0 0 0 1px ${item.accent_color}55` } : undefined}
                       >
@@ -1091,28 +1218,69 @@ export default function UserProfileView({ onEdit, userId, onSendMessage }: UserP
                         </div>
 
                         {isOwnProfile && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteAlbumItem(item.id);
-                            }}
-                            className="absolute right-2 top-2 p-1.5 rounded-full bg-black/55 text-white hover:bg-black/75"
-                            title="Excluir item"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                          <div className="absolute right-2 top-2 flex items-center gap-1">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleSetAlbumCover(item.id);
+                              }}
+                              disabled={albumSavingLayout}
+                              className="p-1.5 rounded-full bg-black/55 text-[#f3dd9b] hover:bg-black/75 disabled:opacity-60"
+                              title="Definir como capa"
+                            >
+                              <Crown className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteAlbumItem(item.id);
+                              }}
+                              className="p-1.5 rounded-full bg-black/55 text-white hover:bg-black/75"
+                              title="Excluir item"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         )}
 
                         <div className="absolute left-2 right-2 bottom-2 flex items-center justify-between">
                           <span className="text-[10px] font-bold text-white/90">
-                            #{index + 2}
+                            #{absoluteIndex + 1}
                           </span>
                           <span className="text-[10px] font-semibold text-white/80">
                             {new Date(item.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
                           </span>
                         </div>
+
+                        {isAlbumManageMode && (
+                          <div className="absolute left-2 top-2 flex items-center gap-1">
+                            <span className="p-1 rounded-full bg-black/45 text-white">
+                              <GripVertical className="w-3 h-3" />
+                            </span>
+                            <button
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                await handleMoveAlbumItem(item.id, 'up');
+                              }}
+                              className="p-1 rounded-full bg-black/45 text-white"
+                              title="Subir"
+                            >
+                              <ArrowUp className="w-3 h-3" />
+                            </button>
+                            <button
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                await handleMoveAlbumItem(item.id, 'down');
+                              }}
+                              className="p-1 rounded-full bg-black/45 text-white"
+                              title="Descer"
+                            >
+                              <ArrowDown className="w-3 h-3" />
+                            </button>
+                          </div>
+                        )}
                       </button>
-                    ))}
+                    )})}
 
                     {isOwnProfile && albumItems.length < ALBUM_MAX_ITEMS && (
                       <button

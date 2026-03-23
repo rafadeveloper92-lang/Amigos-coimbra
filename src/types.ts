@@ -111,6 +111,7 @@ export interface AlbumItem {
   media_type: 'image' | 'video';
   caption?: string | null;
   accent_color?: string | null;
+  sort_order?: number | null;
   created_at: string;
 }
 

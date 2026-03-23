@@ -1854,11 +1854,41 @@ export const dataService = {
       .from('user_album_items')
       .select('*')
       .eq('user_id', userId)
+      .order('sort_order', { ascending: true, nullsFirst: false })
       .order('created_at', { ascending: false });
 
     if (error) {
-      console.error('Erro ao buscar álbum do usuário:', error);
-      return [];
+      const canRetryWithoutSortOrder =
+        error.code === 'PGRST204' ||
+        error.message.toLowerCase().includes('column') ||
+        error.message.toLowerCase().includes('schema cache');
+
+      if (!canRetryWithoutSortOrder) {
+        console.error('Erro ao buscar álbum do usuário:', error);
+        return [];
+      }
+
+      const fallback = await supabase
+        .from('user_album_items')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false });
+
+      if (fallback.error) {
+        console.error('Erro ao buscar álbum do usuário (fallback):', fallback.error);
+        return [];
+      }
+
+      return (fallback.data || []).map((item: any) => ({
+        id: item.id,
+        user_id: item.user_id,
+        media_url: item.media_url,
+        media_type: inferPostMediaType(item.media_url, item.media_type),
+        caption: item.caption ?? null,
+        accent_color: item.accent_color ?? null,
+        sort_order: null,
+        created_at: item.created_at,
+      }));
     }
 
     return (data || []).map((item: any) => ({
@@ -1868,6 +1898,7 @@ export const dataService = {
       media_type: inferPostMediaType(item.media_url, item.media_type),
       caption: item.caption ?? null,
       accent_color: item.accent_color ?? null,
+      sort_order: item.sort_order ?? null,
       created_at: item.created_at,
     }));
   },
@@ -1913,6 +1944,19 @@ export const dataService = {
     }
 
     const accent = ALBUM_ACCENT_PALETTE[Math.floor(Math.random() * ALBUM_ACCENT_PALETTE.length)];
+    let nextSortOrder = (count || 0) + 1;
+
+    const latestWithOrder = await supabase
+      .from('user_album_items')
+      .select('sort_order')
+      .eq('user_id', userId)
+      .order('sort_order', { ascending: false, nullsFirst: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (!latestWithOrder.error && typeof (latestWithOrder.data as any)?.sort_order === 'number') {
+      nextSortOrder = Number((latestWithOrder.data as any).sort_order) + 1;
+    }
 
     const basePayload = {
       user_id: userId,
@@ -1924,6 +1968,7 @@ export const dataService = {
       ...basePayload,
       caption: payload.caption?.trim() || null,
       accent_color: accent,
+      sort_order: nextSortOrder,
     };
 
     const { data, error } = await supabase
@@ -1951,6 +1996,44 @@ export const dataService = {
     }
 
     return data;
+  },
+
+  async reorderUserAlbumItems(userId: string, orderedItemIds: number[]) {
+    if (!userId || !orderedItemIds.length) return false;
+
+    for (let index = 0; index < orderedItemIds.length; index += 1) {
+      const itemId = orderedItemIds[index];
+      const { error } = await supabase
+        .from('user_album_items')
+        .update({ sort_order: index + 1 })
+        .eq('id', itemId)
+        .eq('user_id', userId);
+
+      if (error) {
+        const canIgnoreSortOrderColumnError =
+          error.code === 'PGRST204' ||
+          error.message.toLowerCase().includes('column') ||
+          error.message.toLowerCase().includes('schema cache');
+
+        if (!canIgnoreSortOrderColumnError) {
+          throw error;
+        }
+        return false;
+      }
+    }
+
+    return true;
+  },
+
+  async setUserAlbumCover(userId: string, coverItemId: number) {
+    const items = await this.getUserAlbumItems(userId);
+    if (!items.length) return false;
+
+    const currentIds = items.map((item) => item.id);
+    if (!currentIds.includes(coverItemId)) return false;
+
+    const reorderedIds = [coverItemId, ...currentIds.filter((id) => id !== coverItemId)];
+    return this.reorderUserAlbumItems(userId, reorderedIds);
   },
 
   async deleteUserAlbumItem(itemId: number, userId?: string) {
