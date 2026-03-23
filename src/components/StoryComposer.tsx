@@ -1008,7 +1008,7 @@ export default function StoryComposer({
         )}
 
         <div className="absolute right-4 bottom-24 z-20">
-          <BrandWatermark />
+          <BrandWatermark handle={`@${(user?.user_metadata?.username || 'amigoscoimbra').replace(/^@/, '')}`} />
         </div>
 
         <AnimatePresence>

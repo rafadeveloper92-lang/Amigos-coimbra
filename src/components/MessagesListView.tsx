@@ -3,6 +3,7 @@ import { MessageSquare, Search, User as UserIcon, ChevronRight } from 'lucide-re
 import { dataService } from '../services/dataService';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../services/supabaseClient';
+import { getConversationPreviewText } from '../utils/storyReplyMessage';
 
 interface MessagesListViewProps {
   onSelectConversation: (userId: string) => void;
@@ -136,7 +137,7 @@ export default function MessagesListView({ onSelectConversation }: MessagesListV
                     </span>
                   </div>
                   <p className="text-xs text-slate-500 truncate">
-                    {conv.isMe ? 'Você: ' : ''}{conv.lastMessage}
+                    {conv.isMe ? 'Você: ' : ''}{getConversationPreviewText(conv.lastMessage || '')}
                   </p>
                 </div>
                 

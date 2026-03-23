@@ -3,6 +3,7 @@ import { ArrowLeft, Send, User as UserIcon } from 'lucide-react';
 import { dataService } from '../services/dataService';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../services/supabaseClient';
+import { parseStoryReplyMessage } from '../utils/storyReplyMessage';
 
 interface DirectMessagesViewProps {
   targetUserId: string;
@@ -148,6 +149,7 @@ export default function DirectMessagesView({ targetUserId, onBack, onViewProfile
         ) : (
           messages.map((msg, idx) => {
             const isMe = msg.sender_id === user?.id;
+            const storyReply = parseStoryReplyMessage(msg.content || '');
             return (
               <div key={msg.id || `dm-${idx}`} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
                 <div className={`max-w-[80%] px-4 py-2.5 rounded-2xl ${
@@ -155,7 +157,37 @@ export default function DirectMessagesView({ targetUserId, onBack, onViewProfile
                     ? 'bg-nexus-blue text-white rounded-tr-sm' 
                     : 'bg-white border border-slate-200 text-slate-800 rounded-tl-sm shadow-sm'
                 }`}>
-                  <p className="text-sm whitespace-pre-wrap break-words">{msg.content}</p>
+                  {storyReply ? (
+                    <div className="space-y-2">
+                      <div className={`rounded-xl overflow-hidden border ${isMe ? 'border-white/25' : 'border-slate-200'} bg-black/10`}>
+                        <div className="relative w-full h-28 bg-black">
+                          {storyReply.mediaType === 'video' ? (
+                            <video
+                              src={storyReply.mediaUrl}
+                              muted
+                              playsInline
+                              preload="metadata"
+                              className="w-full h-full object-cover opacity-85"
+                            />
+                          ) : (
+                            <img
+                              src={storyReply.mediaUrl}
+                              alt="Prévia do story"
+                              className="w-full h-full object-cover"
+                            />
+                          )}
+                          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-2">
+                            <p className="text-[10px] font-bold text-white tracking-wide">
+                              Respondeu ao story {storyReply.ownerUsername ? `de @${storyReply.ownerUsername.replace(/^@/, '')}` : ''}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                      <p className="text-sm whitespace-pre-wrap break-words">{storyReply.text}</p>
+                    </div>
+                  ) : (
+                    <p className="text-sm whitespace-pre-wrap break-words">{msg.content}</p>
+                  )}
                 </div>
                 <span className="text-[10px] text-slate-400 mt-1 px-1">
                   {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}

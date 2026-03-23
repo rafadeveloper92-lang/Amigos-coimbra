@@ -7,6 +7,7 @@ import { dataService } from '../services/dataService';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import BrandWatermark from './BrandWatermark';
+import { serializeStoryReplyMessage } from '../utils/storyReplyMessage';
 
 interface StoryViewerProps {
   stories: Story[];
@@ -71,6 +72,7 @@ export default function StoryViewer({ stories, initialIndex = 0, onClose, onOpen
   const [favoriteTracks, setFavoriteTracks] = useState<FavoriteMusicTrack[]>([]);
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionInfo, setActionInfo] = useState<string | null>(null);
+  const endSoundPlayedRef = useRef<string | null>(null);
 
   const currentStory = localStories[currentIndex];
   const user = currentStory?.profile;
@@ -85,6 +87,10 @@ export default function StoryViewer({ stories, initialIndex = 0, onClose, onOpen
     setActionError(null);
     setActionInfo(null);
   }, [stories, initialIndex]);
+
+  useEffect(() => {
+    endSoundPlayedRef.current = null;
+  }, [currentStory?.id]);
 
   useEffect(() => {
     if (localStories.length === 0) {
@@ -373,6 +379,43 @@ export default function StoryViewer({ stories, initialIndex = 0, onClose, onOpen
     }
   };
 
+  const playEndBrandSound = () => {
+    if (typeof window === 'undefined') return;
+    try {
+      const AudioContextClass = (window as any).AudioContext || (window as any).webkitAudioContext;
+      if (!AudioContextClass) return;
+
+      const ctx = new AudioContextClass();
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.035, ctx.currentTime + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.42);
+      gain.connect(ctx.destination);
+
+      const osc1 = ctx.createOscillator();
+      osc1.type = 'triangle';
+      osc1.frequency.setValueAtTime(660, ctx.currentTime);
+      osc1.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.22);
+      osc1.connect(gain);
+      osc1.start(ctx.currentTime);
+      osc1.stop(ctx.currentTime + 0.24);
+
+      const osc2 = ctx.createOscillator();
+      osc2.type = 'sine';
+      osc2.frequency.setValueAtTime(990, ctx.currentTime + 0.18);
+      osc2.frequency.exponentialRampToValueAtTime(740, ctx.currentTime + 0.4);
+      osc2.connect(gain);
+      osc2.start(ctx.currentTime + 0.16);
+      osc2.stop(ctx.currentTime + 0.42);
+
+      setTimeout(() => {
+        void ctx.close();
+      }, 600);
+    } catch {
+      // no-op
+    }
+  };
+
   const handleStoryTap = (direction: 'prev' | 'next') => {
     // Instagram-like: primeiro toque no vídeo ativa áudio.
     if (currentStory.media_type === 'video' && isVideoMuted) {
@@ -386,6 +429,16 @@ export default function StoryViewer({ stories, initialIndex = 0, onClose, onOpen
     }
     nextStory();
   };
+
+  const showEndBrandOverlay = progress >= 88;
+
+  useEffect(() => {
+    if (!currentStory?.id) return;
+    if (!showEndBrandOverlay) return;
+    if (endSoundPlayedRef.current === currentStory.id) return;
+    endSoundPlayedRef.current = currentStory.id;
+    playEndBrandSound();
+  }, [showEndBrandOverlay, currentStory?.id]);
 
   const storyId = currentStory.id;
   const isLiked = !!likedStories[storyId];
@@ -449,7 +502,14 @@ export default function StoryViewer({ stories, initialIndex = 0, onClose, onOpen
     setActionError(null);
     setActionInfo(null);
     try {
-      const storyContextMessage = `📷 Respondeu ao seu story: ${content}`;
+      const storyContextMessage = serializeStoryReplyMessage({
+        v: 1,
+        storyId: currentStory.id,
+        mediaUrl: currentStory.media_url,
+        mediaType: currentStory.media_type,
+        ownerUsername: user?.username,
+        text: content,
+      });
       const sent = await dataService.sendDirectMessage(authUser.id, currentStory.user_id, storyContextMessage);
       if (!sent) {
         setActionError('Não foi possível enviar a mensagem para o PV.');
@@ -807,8 +867,26 @@ export default function StoryViewer({ stories, initialIndex = 0, onClose, onOpen
         )}
 
         <div className="absolute right-4 bottom-24 z-20">
-          <BrandWatermark />
+          <BrandWatermark handle={`@${(user?.username || 'amigoscoimbra').replace(/^@/, '')}`} />
         </div>
+
+        {showEndBrandOverlay && (
+          <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.8, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              className="flex flex-col items-center gap-3"
+            >
+              <BrandWatermark
+                variant="center"
+                handle={`@${(user?.username || 'amigoscoimbra').replace(/^@/, '')}`}
+              />
+              <div className="text-[11px] font-bold tracking-wide text-white/90 bg-black/45 border border-white/20 rounded-full px-3 py-1">
+                Som original
+              </div>
+            </motion.div>
+          </div>
+        )}
 
         {/* Footer / Actions */}
         <div className="absolute bottom-6 left-4 right-4 z-20 flex items-center gap-2">
