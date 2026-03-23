@@ -49,6 +49,16 @@ interface UserProfileViewProps {
 }
 
 const ALBUM_MAX_ITEMS = 10;
+const PREMIUM_MAGAZINE_TITLES = [
+  'Edição de Ouro',
+  'Style & Power',
+  'Iconic Moments',
+  'Legendary Mood',
+  'Spotlight Issue',
+  'Vibe de Elite',
+  'Urban Prestige',
+  'Collection Prime',
+];
 
 export default function UserProfileView({ onEdit, userId, onSendMessage }: UserProfileViewProps) {
   const { profile: currentUserProfile, user: currentUser } = useAuth();
@@ -481,6 +491,12 @@ export default function UserProfileView({ onEdit, userId, onSendMessage }: UserP
   const draggedAlbumItem = draggedAlbumItemId
     ? nonCoverAlbumItems.find((item) => item.id === draggedAlbumItemId) || null
     : null;
+  const premiumCoverTitle = coverAlbumItem
+    ? PREMIUM_MAGAZINE_TITLES[Math.abs(coverAlbumItem.id) % PREMIUM_MAGAZINE_TITLES.length]
+    : 'Edição Premium';
+  const premiumCoverIssue = coverAlbumItem
+    ? new Date(coverAlbumItem.created_at).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
+    : '';
 
   return (
     <div className={`w-full max-w-4xl mx-auto pb-24 ${isDark ? 'profile-dark-moody' : ''}`}>
@@ -1151,51 +1167,77 @@ export default function UserProfileView({ onEdit, userId, onSendMessage }: UserP
               {albumItems.length > 0 ? (
                 <div className="space-y-3">
                   {coverAlbumItem && (
-                    <button
-                      onClick={() => setSelectedAlbumItem(coverAlbumItem)}
-                      className={`relative w-full h-52 md:h-64 rounded-2xl overflow-hidden border ${isDark ? 'border-[#d7bb76]/35' : 'border-slate-200'}`}
-                      style={coverAlbumItem.accent_color ? { boxShadow: `inset 0 0 0 1px ${coverAlbumItem.accent_color}66` } : undefined}
+                    <div
+                      className={`relative rounded-2xl p-[2px] ${
+                        isDark
+                          ? 'bg-gradient-to-br from-[#f6e0a1] via-[#d7bb76] to-[#6f5321]'
+                          : 'bg-gradient-to-br from-amber-200 via-amber-300 to-orange-300'
+                      }`}
                     >
-                      {coverAlbumItem.media_type === 'video' ? (
-                        <video
-                          src={coverAlbumItem.media_url}
-                          muted
-                          playsInline
-                          preload="metadata"
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <img src={coverAlbumItem.media_url} alt="Capa do álbum" className="w-full h-full object-cover" />
-                      )}
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-black/10" />
-                      <div className="absolute left-3 right-3 bottom-3 flex items-end justify-between gap-3">
-                        <div className="text-left">
-                          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#f3dd9b]">Amigos Magazine</p>
-                          <p className="text-sm md:text-base font-black text-white truncate">@{username} • Edição Premium</p>
-                          <p className="text-[11px] text-white/80">
-                            {new Date(coverAlbumItem.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' })}
+                      <button
+                        onClick={() => setSelectedAlbumItem(coverAlbumItem)}
+                        className="relative w-full h-52 md:h-64 rounded-[14px] overflow-hidden border border-black/30"
+                        style={coverAlbumItem.accent_color ? { boxShadow: `inset 0 0 0 1px ${coverAlbumItem.accent_color}66` } : undefined}
+                      >
+                        {coverAlbumItem.media_type === 'video' ? (
+                          <video
+                            src={coverAlbumItem.media_url}
+                            muted
+                            playsInline
+                            preload="metadata"
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <img src={coverAlbumItem.media_url} alt="Capa do álbum" className="w-full h-full object-cover" />
+                        )}
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/35 to-black/10" />
+                        <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_0%,rgba(255,255,255,0.36),transparent_38%)]" />
+                        <div className="absolute left-2 top-2 h-6 w-6 border-l-2 border-t-2 border-[#f3dd9b]/80 rounded-tl-md" />
+                        <div className="absolute right-2 top-2 h-6 w-6 border-r-2 border-t-2 border-[#f3dd9b]/80 rounded-tr-md" />
+                        <div className="absolute left-2 bottom-2 h-6 w-6 border-l-2 border-b-2 border-[#f3dd9b]/80 rounded-bl-md" />
+                        <div className="absolute right-2 bottom-2 h-6 w-6 border-r-2 border-b-2 border-[#f3dd9b]/80 rounded-br-md" />
+
+                        <div className="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full bg-[#d7bb76]/92 text-[#1e293b] px-2.5 py-1 text-[10px] font-black uppercase tracking-wider">
+                          <Crown className="w-3 h-3" />
+                          Capa atual
+                        </div>
+
+                        <div className="absolute left-3 right-3 top-11 text-left">
+                          <p className="text-[9px] md:text-[10px] font-black uppercase tracking-[0.24em] text-[#f7e7ba] drop-shadow-[0_1px_3px_rgba(0,0,0,0.7)]">
+                            Amigos Magazine • Premium Cover
+                          </p>
+                          <p className="mt-1 text-xl md:text-2xl font-black uppercase tracking-[0.08em] text-white leading-[1.04] drop-shadow-[0_3px_10px_rgba(0,0,0,0.7)]">
+                            {premiumCoverTitle}
+                          </p>
+                          <p className="mt-1 text-[10px] md:text-[11px] font-semibold uppercase tracking-[0.18em] text-white/80">
+                            @{username} • {premiumCoverIssue}
                           </p>
                         </div>
-                        <div className="flex items-center gap-2">
-                          {coverAlbumItem.media_type === 'video' && (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-black/45 px-2.5 py-1 text-[10px] font-bold text-white">
-                              <Play className="w-3 h-3 fill-white" />
-                              Vídeo
-                            </span>
-                          )}
-                          {isOwnProfile && (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-[#d7bb76]/85 text-[#1e293b] px-2.5 py-1 text-[10px] font-black uppercase tracking-wider">
-                              <Crown className="w-3 h-3" />
-                              Capa
-                            </span>
-                          )}
+
+                        <div className="absolute left-3 right-3 bottom-3 flex items-end justify-between gap-3">
+                          <div className="text-left">
+                            <p className="text-[11px] font-black text-white/95">Editorial Edition</p>
+                            <p className="text-[10px] text-white/80">
+                              {new Date(coverAlbumItem.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' })}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {coverAlbumItem.media_type === 'video' && (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-black/45 px-2.5 py-1 text-[10px] font-bold text-white">
+                                <Play className="w-3 h-3 fill-white" />
+                                Vídeo
+                              </span>
+                            )}
+                            {isOwnProfile && (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-[#d7bb76]/85 text-[#1e293b] px-2.5 py-1 text-[10px] font-black uppercase tracking-wider">
+                                <Crown className="w-3 h-3" />
+                                Capa
+                              </span>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                      <div className="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full bg-[#d7bb76]/90 text-[#1e293b] px-2.5 py-1 text-[10px] font-black uppercase tracking-wider">
-                        <Crown className="w-3 h-3" />
-                        Capa atual
-                      </div>
-                    </button>
+                      </button>
+                    </div>
                   )}
 
                   {!isAlbumManageMode && nonCoverAlbumItems.length > 0 && (
