@@ -15,6 +15,7 @@ import PostDetailView from './components/PostDetailView';
 import AdManager from './components/AdManager';
 import PwaInstallPrompt from './components/PwaInstallPrompt';
 import { useAuth } from './contexts/AuthContext';
+import { useTheme } from './contexts/ThemeContext';
 import { dataService } from './services/dataService';
 import { motion } from 'motion/react';
 import { useState, useEffect } from 'react';
@@ -23,6 +24,7 @@ export type ViewType = 'feed' | 'profile' | 'groups' | 'friends' | 'messages' | 
 
 export default function App() {
   const { user, profile, loading, profileError } = useAuth();
+  const { isDark } = useTheme();
   const [currentView, setCurrentView] = useState<ViewType>('feed');
   const [profileSubView, setProfileSubView] = useState<'view' | 'edit'>('view');
   const [viewingUserId, setViewingUserId] = useState<string | null>(null);
@@ -217,7 +219,13 @@ export default function App() {
         >
           {/* Tabs - Only show on Feed, Groups, Friends */}
           {(currentView === 'feed' || currentView === 'groups' || currentView === 'friends') && (
-            <div className="bg-white rounded-xl shadow-sm mb-4 sticky top-[68px] z-40 mx-4 lg:mx-0">
+            <div
+              className={`main-tabs-premium rounded-xl shadow-sm mb-4 sticky top-[68px] z-40 mx-4 lg:mx-0 ${
+                isDark
+                  ? 'bg-slate-900/75 border border-[#d7bb76]/25 backdrop-blur-xl shadow-[0_14px_30px_rgba(2,6,23,0.5)]'
+                  : 'bg-white'
+              }`}
+            >
               <div className="flex items-center">
                 {[
                   { id: 'feed', label: 'FEED' },
@@ -227,13 +235,19 @@ export default function App() {
                   <button
                     key={tab.id}
                     onClick={() => handleNavigate(tab.id as ViewType)}
-                    className={`flex-1 py-3 text-xs font-bold tracking-wider transition-all relative ${
-                      currentView === tab.id ? 'text-nexus-blue' : 'text-slate-500'
+                    className={`main-tabs-premium-btn flex-1 py-3 text-xs font-bold tracking-wider transition-all relative ${
+                      currentView === tab.id
+                        ? isDark
+                          ? 'text-[#f3dd9b]'
+                          : 'text-nexus-blue'
+                        : isDark
+                          ? 'text-slate-400'
+                          : 'text-slate-500'
                     }`}
                   >
                     {tab.label}
                     {currentView === tab.id && (
-                      <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-12 h-1 bg-nexus-blue rounded-t-full"></div>
+                      <div className={`absolute bottom-0 left-1/2 -translate-x-1/2 w-12 h-1 rounded-t-full ${isDark ? 'bg-[#d7bb76]' : 'bg-nexus-blue'}`}></div>
                     )}
                   </button>
                 ))}

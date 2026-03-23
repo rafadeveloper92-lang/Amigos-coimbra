@@ -287,7 +287,7 @@ export default function GroupsView({ onViewProfile, onSendMessage }: GroupsViewP
   }
 
   return (
-    <div className="max-w-md mx-auto p-4 lg:p-6 min-h-screen bg-slate-50 pb-24">
+    <div className="groups-premium-shell max-w-md mx-auto p-4 lg:p-6 min-h-screen bg-slate-50 pb-24">
       {errorMessage && (
         <div className="mb-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded-lg flex justify-between items-center">
           <span>{errorMessage}</span>
@@ -385,7 +385,7 @@ export default function GroupsView({ onViewProfile, onSendMessage }: GroupsViewP
       {user && (
         <button
           onClick={() => handleOpenModal()}
-          className="w-full bg-nexus-blue text-white rounded-2xl py-4 font-bold uppercase tracking-widest text-sm flex items-center justify-center gap-2 mb-6 shadow-lg active:scale-95 transition-all"
+          className="group-premium-cta w-full bg-nexus-blue text-white rounded-2xl py-4 font-bold uppercase tracking-widest text-sm flex items-center justify-center gap-2 mb-6 shadow-lg active:scale-95 transition-all"
         >
           <Plus className="w-5 h-5" /> CRIAR GRUPO
         </button>

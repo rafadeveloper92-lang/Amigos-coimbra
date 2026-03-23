@@ -6,12 +6,14 @@ import { Story, Profile } from '../types';
 import { supabase } from '../services/supabaseClient';
 import StoryViewer from './StoryViewer';
 import StoryComposer, { StoryComposerPayload } from './StoryComposer';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface StoriesBarProps {
   onSendMessage?: (userId: string) => void;
 }
 
 export default function StoriesBar({ onSendMessage }: StoriesBarProps) {
+  const { isDark } = useTheme();
   const [stories, setStories] = useState<Story[]>([]);
   const [currentUser, setCurrentUser] = useState<Profile | null>(null);
   const [isViewerOpen, setIsViewerOpen] = useState(false);
@@ -199,18 +201,22 @@ export default function StoriesBar({ onSendMessage }: StoriesBarProps) {
   };
 
   return (
-    <div className="relative w-full bg-white border-b border-slate-100 py-4 mb-4">
+    <div
+      className={`stories-premium-bar relative w-full bg-white border-b border-slate-100 py-4 mb-4 ${
+        isDark ? 'rounded-2xl border' : ''
+      }`}
+    >
       <div className="max-w-6xl mx-auto relative px-4">
         {/* Scroll Buttons */}
         <button 
           onClick={() => scroll('left')}
-          className="absolute left-2 top-1/2 -translate-y-1/2 z-10 p-1 bg-white rounded-full shadow-md border border-slate-100 text-slate-400 hover:text-nexus-blue transition-colors hidden md:block"
+          className="stories-premium-nav-btn absolute left-2 top-1/2 -translate-y-1/2 z-10 p-1 bg-white rounded-full shadow-md border border-slate-100 text-slate-400 hover:text-nexus-blue transition-colors hidden md:block"
         >
           <ChevronLeft className="w-5 h-5" />
         </button>
         <button 
           onClick={() => scroll('right')}
-          className="absolute right-2 top-1/2 -translate-y-1/2 z-10 p-1 bg-white rounded-full shadow-md border border-slate-100 text-slate-400 hover:text-nexus-blue transition-colors hidden md:block"
+          className="stories-premium-nav-btn absolute right-2 top-1/2 -translate-y-1/2 z-10 p-1 bg-white rounded-full shadow-md border border-slate-100 text-slate-400 hover:text-nexus-blue transition-colors hidden md:block"
         >
           <ChevronRight className="w-5 h-5" />
         </button>
@@ -224,7 +230,7 @@ export default function StoriesBar({ onSendMessage }: StoriesBarProps) {
             <button 
               onClick={() => fileInputRef.current?.click()}
               disabled={uploading}
-              className="relative w-16 h-16 rounded-full p-[2px] bg-slate-100 overflow-hidden group"
+              className="stories-premium-add relative w-16 h-16 rounded-full p-[2px] bg-slate-100 overflow-hidden group"
             >
               {currentUser?.avatar_url ? (
                 <img 

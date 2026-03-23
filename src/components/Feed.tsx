@@ -8,6 +8,7 @@ import { Post } from '../types';
 import CreatePostModal from './CreatePostModal';
 import { supabase } from '../services/supabaseClient';
 import { ViewType } from '../App';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface FeedProps {
   onNavigate?: (view: ViewType) => void;
@@ -16,6 +17,7 @@ interface FeedProps {
 }
 
 export default function Feed({ onNavigate, onViewProfile, onSendMessage }: FeedProps) {
+  const { isDark } = useTheme();
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -52,7 +54,11 @@ export default function Feed({ onNavigate, onViewProfile, onSendMessage }: FeedP
   }, [fetchPosts]);
 
   return (
-    <main className="flex-1 w-full p-4 pb-24 lg:pb-4 lg:p-0">
+    <main
+      className={`feed-premium-shell flex-1 w-full p-4 pb-24 lg:pb-4 lg:p-0 ${
+        isDark ? 'rounded-2xl lg:rounded-3xl' : ''
+      }`}
+    >
       <AdCarousel />
       <StoriesBar onSendMessage={onSendMessage} />
       
@@ -95,7 +101,7 @@ export default function Feed({ onNavigate, onViewProfile, onSendMessage }: FeedP
       {/* FAB - Mobile Only */}
       <button 
         onClick={() => setIsModalOpen(true)}
-        className="fixed bottom-20 right-4 lg:bottom-8 lg:right-8 w-14 h-14 bg-nexus-blue text-white rounded-full shadow-lg flex items-center justify-center hover:scale-110 active:scale-95 transition-all z-50"
+        className="feed-premium-fab fixed bottom-20 right-4 lg:bottom-8 lg:right-8 w-14 h-14 bg-nexus-blue text-white rounded-full shadow-lg flex items-center justify-center hover:scale-110 active:scale-95 transition-all z-50"
       >
         <Plus className="w-8 h-8" />
       </button>
