@@ -77,6 +77,11 @@ async function startServer() {
           name?.trim() ||
           `Canal ${groupVoiceChannels[g].filter((c) => c.id !== 'default').length + 1}`;
         groupVoiceChannels[g].push({ id, name: label });
+        // Garante que quem criou recebe a lista (caso o broadcast chegue antes do join à sala meta)
+        socket.emit('voice-channels-list', {
+          groupId: g,
+          channels: groupVoiceChannels[g],
+        });
         broadcastChannelList(g);
       },
     );

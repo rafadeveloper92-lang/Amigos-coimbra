@@ -207,10 +207,32 @@ export default function VoiceChannel({ groupId, profile, isAdmin, groupCreatorId
   };
 
   useEffect(() => {
-    socketRef.current = io(window.location.origin, { transports: ['websocket', 'polling'] });
+    // Servidor Socket.IO só existe com `npm run dev` (ou backend hospedado). GitHub Pages = sem voz.
+    const socketUrl = import.meta.env.VITE_SOCKET_URL || window.location.origin;
+
+    socketRef.current = io(socketUrl, {
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
+    });
     const socket = socketRef.current;
 
-    socket.emit('join-voice-meta', { groupId });
+    const onConnect = () => {
+      socket.emit('join-voice-meta', { groupId });
+    };
+    socket.on('connect', onConnect);
+    // Se já estiver ligado (re-render raro)
+    if (socket.connected) {
+      onConnect();
+    }
+
+    socket.on('connect_error', (err) => {
+      console.error('Socket connect_error:', err);
+      setError(
+        'Servidor de voz indisponível. Abra o app em http://localhost:3000 com npm run dev, ou defina VITE_SOCKET_URL no .env apontando para o backend.',
+      );
+    });
 
     socket.on('voice-channels-list', ({ channels: list }: { channels: ChannelRow[] }) => {
       if (Array.isArray(list) && list.length) setChannels(list);
@@ -325,6 +347,7 @@ export default function VoiceChannel({ groupId, profile, isAdmin, groupCreatorId
 
     return () => {
       leaveVoiceInternal();
+      socket.off('connect', onConnect);
       socket.emit('leave-voice-meta', { groupId });
       socket.disconnect();
     };
@@ -346,8 +369,14 @@ export default function VoiceChannel({ groupId, profile, isAdmin, groupCreatorId
   }, [groupId, selectedChannelId, isInVoice]);
 
   const createChannel = () => {
+    if (!socketRef.current?.connected) {
+      setError(
+        'Sem ligação ao servidor de voz. Use npm run dev em localhost:3000 ou configure VITE_SOCKET_URL.',
+      );
+      return;
+    }
     const name = newChannelName.trim() || `Canal ${channels.length}`;
-    socketRef.current?.emit('create-voice-channel', { groupId, name });
+    socketRef.current.emit('create-voice-channel', { groupId, name });
     setNewChannelName('');
     setShowCreateInput(false);
   };

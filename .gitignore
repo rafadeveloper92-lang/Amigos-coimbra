@@ -1,6 +1,13 @@
 node_modules/
 build/
 dist/
+
+# Android (Capacitor) — gera ao compilar no Android Studio
+android/app/build/
+android/build/
+android/.gradle/
+android/captures/
+android/local.properties
 coverage/
 .DS_Store
 *.log

@@ -6,9 +6,11 @@ import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig(({mode}) => {
   const env = loadEnv(mode, '.', '');
-  // GitHub Pages: site em /Amigos-coimbra/ — definir VITE_BASE_PATH no CI (ver .github/workflows)
+  // GitHub Pages: VITE_BASE_PATH=/Amigos-coimbra/ | APK (Capacitor): base /
   const base =
-    process.env.VITE_BASE_PATH || env.VITE_BASE_PATH || '/';
+    process.env.CAPACITOR === '1'
+      ? '/'
+      : process.env.VITE_BASE_PATH || env.VITE_BASE_PATH || '/';
 
   return {
     base,

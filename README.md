@@ -19,6 +19,10 @@ View your app in AI Studio: https://ai.studio/apps/ffdf2977-00ff-4215-b0ea-3bd9b
 3. Run the app:
    `npm run dev`
 
+**Testar no celular (login + voz no mesmo servidor):** vê [TESTE_NO_CELULAR.md](TESTE_NO_CELULAR.md) — usa `http://IP-DO-PC:3000` na mesma rede Wi‑Fi e adiciona esse URL no Supabase.
+
+**Gerar APK Android:** vê [BUILD_APK.md](BUILD_APK.md) (Capacitor + Android Studio).
+
 ## GitHub Pages (site no telefone)
 
 Em cada **push** na branch `main`, o workflow [`.github/workflows/deploy-pages.yml`](.github/workflows/deploy-pages.yml) faz **build** e publica em  
