@@ -1385,8 +1385,16 @@ export const dataService = {
   },
 
   async createPost(post: Partial<Post>) {
+    const { data: authData } = await supabase.auth.getUser();
+    const authUserId = authData?.user?.id;
+    const ownerId = post.user_id || authUserId;
+    if (!ownerId) {
+      throw new Error('Usuário não autenticado para criar post.');
+    }
+
     const payload = {
       ...post,
+      user_id: ownerId,
       media_type: post.media_type || undefined,
     };
 
@@ -1400,6 +1408,10 @@ export const dataService = {
         error.code === 'PGRST204' ||
         error.message.toLowerCase().includes('column') ||
         error.message.toLowerCase().includes('schema cache');
+
+      if (error.message.toLowerCase().includes('row-level security policy')) {
+        throw new Error('Permissão de RLS negada na tabela posts. Rode o SQL fix_posts_rls.sql no Supabase.');
+      }
 
       // Se o erro for coluna inexistente, tenta postar sem colunas opcionais.
       if (error.message.includes('user_id') || isColumnOrSchemaError) {

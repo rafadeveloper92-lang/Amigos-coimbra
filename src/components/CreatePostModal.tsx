@@ -3,6 +3,7 @@ import { X, Send, Image as ImageIcon, Trash2, Film } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { dataService } from '../services/dataService';
 import { useAuth } from '../contexts/AuthContext';
+import { supabase } from '../services/supabaseClient';
 
 interface CreatePostModalProps {
   isOpen: boolean;
@@ -58,7 +59,13 @@ export default function CreatePostModal({ isOpen, onClose, onPostCreated }: Crea
     setIsSubmitting(true);
     setErrorMessage(null);
     try {
-      const userName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Usuário';
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      const sessionUser = authUser || user;
+      if (!sessionUser?.id) {
+        throw new Error('Sessão inválida. Faça login novamente para postar.');
+      }
+
+      const userName = sessionUser.user_metadata?.full_name || sessionUser.email?.split('@')[0] || 'Usuário';
       
       let mediaUrl: string | null = null;
       if (selectedMedia) {
@@ -69,7 +76,7 @@ export default function CreatePostModal({ isOpen, onClose, onPostCreated }: Crea
       }
 
       const success = await dataService.createPost({
-        user_id: user?.id,
+        user_id: sessionUser.id,
         author: userName,
         content: content,
         image: mediaUrl || undefined,
@@ -84,7 +91,12 @@ export default function CreatePostModal({ isOpen, onClose, onPostCreated }: Crea
       }
     } catch (error: any) {
       console.error('Erro ao criar post:', error);
-      setErrorMessage(error.message || 'Erro desconhecido ao postar');
+      const normalized = String(error?.message || '').toLowerCase();
+      if (normalized.includes('row-level security policy')) {
+        setErrorMessage('Permissão bloqueada no banco (RLS). Rode o SQL "fix_posts_rls.sql" no Supabase e tente novamente.');
+      } else {
+        setErrorMessage(error.message || 'Erro desconhecido ao postar');
+      }
     } finally {
       setIsSubmitting(false);
     }
