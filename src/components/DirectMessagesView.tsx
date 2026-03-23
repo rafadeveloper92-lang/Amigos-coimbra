@@ -18,7 +18,12 @@ export default function DirectMessagesView({ targetUserId, onBack, onViewProfile
   const [loading, setLoading] = useState(true);
   const [targetProfile, setTargetProfile] = useState<any>(null);
   const [, setPresenceTick] = useState(0);
+  const [isRemoteTyping, setIsRemoteTyping] = useState(false);
+  const [isMeTyping, setIsMeTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const typingStopTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const remoteTypingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const typingChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const { user } = useAuth();
   const ONLINE_THRESHOLD_MINUTES = 3;
 
@@ -57,6 +62,20 @@ export default function DirectMessagesView({ targetUserId, onBack, onViewProfile
     };
   };
 
+  const sendTypingEvent = (isTyping: boolean) => {
+    if (!typingChannelRef.current || !user?.id) return;
+    void typingChannelRef.current.send({
+      type: 'broadcast',
+      event: 'typing',
+      payload: {
+        senderId: user.id,
+        receiverId: targetUserId,
+        isTyping,
+        at: Date.now(),
+      },
+    });
+  };
+
   useEffect(() => {
     const fetchTargetProfile = async () => {
       const p = await dataService.getUserProfile(targetUserId);
@@ -92,6 +111,73 @@ export default function DirectMessagesView({ targetUserId, onBack, onViewProfile
       clearInterval(presenceRecalcInterval);
     };
   }, [targetUserId]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const roomKey = [user.id, targetUserId].sort().join('_');
+    const channel = supabase
+      .channel(`dm_typing_${roomKey}`, {
+        config: {
+          broadcast: { self: false },
+        },
+      })
+      .on('broadcast', { event: 'typing' }, ({ payload }) => {
+        const senderId = payload?.senderId as string | undefined;
+        const receiverId = payload?.receiverId as string | undefined;
+        const isTyping = Boolean(payload?.isTyping);
+
+        if (senderId !== targetUserId) return;
+        if (receiverId && receiverId !== user.id) return;
+
+        setIsRemoteTyping(isTyping);
+
+        if (remoteTypingTimeoutRef.current) {
+          clearTimeout(remoteTypingTimeoutRef.current);
+          remoteTypingTimeoutRef.current = null;
+        }
+
+        // Fallback para apagar "digitando..." caso o evento de stop não chegue.
+        if (isTyping) {
+          remoteTypingTimeoutRef.current = setTimeout(() => {
+            setIsRemoteTyping(false);
+            remoteTypingTimeoutRef.current = null;
+          }, 2200);
+        }
+      })
+      .subscribe();
+
+    typingChannelRef.current = channel;
+
+    return () => {
+      if (typingStopTimeoutRef.current) {
+        clearTimeout(typingStopTimeoutRef.current);
+        typingStopTimeoutRef.current = null;
+      }
+      if (remoteTypingTimeoutRef.current) {
+        clearTimeout(remoteTypingTimeoutRef.current);
+        remoteTypingTimeoutRef.current = null;
+      }
+
+      void channel.send({
+        type: 'broadcast',
+        event: 'typing',
+        payload: {
+          senderId: user.id,
+          receiverId: targetUserId,
+          isTyping: false,
+          at: Date.now(),
+        },
+      });
+
+      supabase.removeChannel(channel);
+      if (typingChannelRef.current === channel) {
+        typingChannelRef.current = null;
+      }
+      setIsRemoteTyping(false);
+      setIsMeTyping(false);
+    };
+  }, [user?.id, targetUserId]);
 
   const fetchMessages = async () => {
     console.log('Fetching messages for:', user?.id, targetUserId);
@@ -161,6 +247,15 @@ export default function DirectMessagesView({ targetUserId, onBack, onViewProfile
       return;
     }
 
+    if (typingStopTimeoutRef.current) {
+      clearTimeout(typingStopTimeoutRef.current);
+      typingStopTimeoutRef.current = null;
+    }
+    if (isMeTyping) {
+      setIsMeTyping(false);
+      sendTypingEvent(false);
+    }
+
     const content = newMessage;
     setNewMessage('');
 
@@ -179,8 +274,40 @@ export default function DirectMessagesView({ targetUserId, onBack, onViewProfile
     }
   };
 
+  const handleMessageInputChange = (value: string) => {
+    setNewMessage(value);
+
+    const hasText = value.trim().length > 0;
+    if (!hasText) {
+      if (typingStopTimeoutRef.current) {
+        clearTimeout(typingStopTimeoutRef.current);
+        typingStopTimeoutRef.current = null;
+      }
+      if (isMeTyping) {
+        setIsMeTyping(false);
+        sendTypingEvent(false);
+      }
+      return;
+    }
+
+    if (!isMeTyping) {
+      setIsMeTyping(true);
+      sendTypingEvent(true);
+    }
+
+    if (typingStopTimeoutRef.current) {
+      clearTimeout(typingStopTimeoutRef.current);
+    }
+    typingStopTimeoutRef.current = setTimeout(() => {
+      setIsMeTyping(false);
+      sendTypingEvent(false);
+      typingStopTimeoutRef.current = null;
+    }, 1300);
+  };
+
   const displayName = targetProfile ? `${targetProfile.first_name} ${targetProfile.last_name}` : 'Usuário';
   const presenceMeta = getPresenceMeta(targetProfile?.updated_at);
+  const headerPresenceLabel = isRemoteTyping ? 'digitando...' : presenceMeta.label;
 
   return (
     <div className="max-w-4xl mx-auto bg-white min-h-[calc(100vh-80px)] md:min-h-[calc(100vh-120px)] flex flex-col rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
@@ -199,14 +326,14 @@ export default function DirectMessagesView({ targetUserId, onBack, onViewProfile
               alt={displayName} 
               className="w-10 h-10 rounded-full object-cover border-2 border-white/20"
             />
-            {presenceMeta.isOnline && (
+            {(presenceMeta.isOnline || isRemoteTyping) && (
               <div className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-400 border-2 border-nexus-blue rounded-full" />
             )}
           </div>
           <div className="flex flex-col min-w-0">
             <h2 className="text-xl font-bold hover:underline truncate">{displayName}</h2>
-            <p className={`text-xs font-medium ${presenceMeta.isOnline ? 'text-emerald-200' : 'text-slate-200'}`}>
-              {presenceMeta.label}
+            <p className={`text-xs font-medium ${isRemoteTyping ? 'text-emerald-100 animate-pulse' : presenceMeta.isOnline ? 'text-emerald-200' : 'text-slate-200'}`}>
+              {headerPresenceLabel}
             </p>
           </div>
         </div>
@@ -370,7 +497,16 @@ export default function DirectMessagesView({ targetUserId, onBack, onViewProfile
           <input
             type="text"
             value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
+            onChange={(e) => handleMessageInputChange(e.target.value)}
+            onBlur={() => {
+              if (!isMeTyping) return;
+              if (typingStopTimeoutRef.current) {
+                clearTimeout(typingStopTimeoutRef.current);
+                typingStopTimeoutRef.current = null;
+              }
+              setIsMeTyping(false);
+              sendTypingEvent(false);
+            }}
             placeholder="Digite sua mensagem..."
             className="flex-1 bg-slate-50 border border-slate-200 rounded-full px-6 py-3 text-sm focus:outline-none focus:border-nexus-blue focus:ring-1 focus:ring-nexus-blue transition-all"
           />
