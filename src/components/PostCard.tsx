@@ -35,6 +35,7 @@ const REACTIONS = [
   { id: 'angry', emoji: '😡', label: 'Raiva', color: 'text-orange-600' },
   { id: 'wow', emoji: '😮', label: 'Uau', color: 'text-yellow-400' },
 ];
+const POST_WATERMARK = 'Amigos Coimbra';
 
 export default function PostCard({ id, userId, author, author_avatar, group, time, content, image, likes: initialLikes, comments: initialComments, reaction_counts: initialReactionCounts, isNews, userReaction, autoOpenComments, onDelete, onViewProfile, onSendMessage }: PostProps) {
   const [likes, setLikes] = useState(initialLikes);
@@ -416,10 +417,15 @@ export default function PostCard({ id, userId, author, author_avatar, group, tim
       {/* Image */}
       {image && (
         <div 
-          className="w-full aspect-video overflow-hidden cursor-pointer"
+          className="w-full aspect-video overflow-hidden cursor-pointer relative"
           onClick={() => setIsFullscreen(true)}
         >
           <img src={image} alt="Post content" className="w-full h-full object-cover" />
+          <div className="absolute right-3 bottom-3 pointer-events-none select-none">
+            <span className="text-[10px] font-bold tracking-wide text-white/75 bg-black/35 rounded-full px-2 py-1 border border-white/20">
+              {POST_WATERMARK}
+            </span>
+          </div>
         </div>
       )}
 
@@ -483,6 +489,12 @@ export default function PostCard({ id, userId, author, author_avatar, group, tim
 
                     <div className="absolute bottom-10 left-1/2 -translate-x-1/2 text-white/50 text-[10px] font-medium bg-black/40 px-4 py-2 rounded-full backdrop-blur-sm z-[210] pointer-events-none">
                       Pince para zoom • Arraste para mover • Toque duplo para resetar
+                    </div>
+
+                    <div className="absolute right-6 bottom-10 pointer-events-none select-none z-[210]">
+                      <span className="text-[10px] font-bold tracking-wide text-white/75 bg-black/35 rounded-full px-2 py-1 border border-white/20">
+                        {POST_WATERMARK}
+                      </span>
                     </div>
 
                     <TransformComponent

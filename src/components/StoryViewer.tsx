@@ -39,6 +39,8 @@ const toDeterministicTrackId = (title: string, artist?: string) => {
   return Math.abs(hash) || 1;
 };
 
+const STORY_WATERMARK = 'Amigos Coimbra';
+
 export default function StoryViewer({ stories, initialIndex = 0, onClose }: StoryViewerProps) {
   const { user: authUser } = useAuth();
   const [localStories, setLocalStories] = useState<Story[]>(stories);
@@ -488,7 +490,7 @@ export default function StoryViewer({ stories, initialIndex = 0, onClose }: Stor
           <div
             className="absolute left-1/2 top-1/2 z-20 pointer-events-none"
             style={{
-              transform: `translate(-50%, -50%) translate(${currentStory.location_x || 0}px, ${currentStory.location_y || -320}px) scale(${currentStory.location_scale || 1})`,
+              transform: `translate(-50%, -50%) translate(${currentStory.location_x ?? 0}px, ${currentStory.location_y ?? -320}px) scale(${currentStory.location_scale ?? 1})`,
             }}
           >
             <div className="px-3 py-1 rounded-full bg-black/50 text-white text-xs font-semibold flex items-center gap-1">
@@ -502,7 +504,7 @@ export default function StoryViewer({ stories, initialIndex = 0, onClose }: Stor
           <div
             className="absolute left-1/2 top-1/2 z-20 px-3 py-1 rounded-full bg-black/50 text-white text-xs font-semibold flex items-center gap-1 max-w-[320px]"
             style={{
-              transform: `translate(-50%, -50%) translate(${currentStory.music_x || 0}px, ${currentStory.music_y || -260}px) scale(${currentStory.music_scale || 1})`,
+              transform: `translate(-50%, -50%) translate(${currentStory.music_x ?? 0}px, ${currentStory.music_y ?? -260}px) scale(${currentStory.music_scale ?? 1})`,
               transformOrigin: 'center center',
             }}
           >
@@ -534,7 +536,7 @@ export default function StoryViewer({ stories, initialIndex = 0, onClose }: Stor
           <div
             className="absolute left-1/2 top-1/2 z-20 overflow-hidden pointer-events-none w-[80vw]"
             style={{
-              transform: `translate(-50%, -50%) translate(${currentStory.music_x || 0}px, ${currentStory.music_y || -260}px) scale(${currentStory.music_scale || 1})`,
+              transform: `translate(-50%, -50%) translate(${currentStory.music_x ?? 0}px, ${currentStory.music_y ?? -260}px) scale(${currentStory.music_scale ?? 1})`,
             }}
           >
             <motion.div
@@ -552,7 +554,7 @@ export default function StoryViewer({ stories, initialIndex = 0, onClose }: Stor
           <div
             className="absolute left-1/2 top-1/2 z-20 flex flex-wrap gap-2 justify-center pointer-events-none max-w-[80vw]"
             style={{
-              transform: `translate(-50%, -50%) translate(${currentStory.mention_x || 0}px, ${currentStory.mention_y || -220}px) scale(${currentStory.mention_scale || 1})`,
+              transform: `translate(-50%, -50%) translate(${currentStory.mention_x ?? 0}px, ${currentStory.mention_y ?? -220}px) scale(${currentStory.mention_scale ?? 1})`,
             }}
           >
             {currentStory.mention_tags.map((mention) => (
@@ -593,7 +595,7 @@ export default function StoryViewer({ stories, initialIndex = 0, onClose }: Stor
           <div
             className="w-full h-full"
             style={{
-              transform: `translate(${currentStory.media_x || 0}px, ${currentStory.media_y || 0}px) scale(${currentStory.media_scale || 1})`,
+              transform: `translate(${currentStory.media_x ?? 0}px, ${currentStory.media_y ?? 0}px) scale(${currentStory.media_scale ?? 1})`,
               transformOrigin: 'center center',
             }}
           >
@@ -621,7 +623,7 @@ export default function StoryViewer({ stories, initialIndex = 0, onClose }: Stor
               style={{
                 left: '50%',
                 top: '50%',
-                transform: `translate(${sticker.x || 0}px, ${sticker.y || 0}px) scale(${sticker.scale || 1})`,
+                transform: `translate(${sticker.x ?? 0}px, ${sticker.y ?? 0}px) scale(${sticker.scale ?? 1})`,
               }}
             >
               {sticker.label}
@@ -646,7 +648,7 @@ export default function StoryViewer({ stories, initialIndex = 0, onClose }: Stor
           <div
             className="absolute left-1/2 top-1/2 z-20 text-center pointer-events-none px-4"
             style={{
-              transform: `translate(-50%, -50%) translate(${currentStory.caption_x || 0}px, ${currentStory.caption_y || 0}px) scale(${currentStory.caption_scale || 1})`,
+              transform: `translate(-50%, -50%) translate(${currentStory.caption_x ?? 0}px, ${currentStory.caption_y ?? 0}px) scale(${currentStory.caption_scale ?? 1})`,
             }}
           >
             <p
@@ -660,6 +662,12 @@ export default function StoryViewer({ stories, initialIndex = 0, onClose }: Stor
             </p>
           </div>
         )}
+
+        <div className="absolute right-4 bottom-24 z-20 pointer-events-none select-none">
+          <span className="text-[10px] font-bold tracking-wide text-white/70 bg-black/35 rounded-full px-2 py-1 border border-white/20">
+            {STORY_WATERMARK}
+          </span>
+        </div>
 
         {/* Footer / Actions */}
         <div className="absolute bottom-6 left-4 right-4 z-20 flex items-center gap-2">

@@ -17,6 +17,7 @@ import {
   Move,
   Navigation,
   Star,
+  Trash2,
 } from 'lucide-react';
 import { supabase } from '../services/supabaseClient';
 import { dataService } from '../services/dataService';
@@ -63,6 +64,8 @@ interface TransformableProps {
   minScale?: number;
   maxScale?: number;
   onSelect?: () => void;
+  onInteractionStart?: () => void;
+  onInteractionEnd?: () => void;
 }
 
 export interface StoryComposerPayload {
@@ -125,6 +128,7 @@ const STICKER_POSITIONS = [
   { x: 120, y: 140 },
 ];
 const TOP_MUSIC_TERMS = ['top brasil', 'viral brasil', 'pop hits', 'sertanejo', 'forró hits'];
+const STORY_WATERMARK = 'Amigos Coimbra';
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
@@ -148,6 +152,8 @@ const TransformableItem: FC<TransformableProps> = ({
   minScale = 0.5,
   maxScale = 3,
   onSelect,
+  onInteractionStart,
+  onInteractionEnd,
 }) => {
   const touchRef = useRef<{
     mode: 'none' | 'drag' | 'pinch';
@@ -180,7 +186,7 @@ const TransformableItem: FC<TransformableProps> = ({
   });
 
   useEffect(() => {
-    const onMouseMove = (event: MouseEvent) => {
+    const onMouseMove = (event: globalThis.MouseEvent) => {
       if (!mouseRef.current.active) return;
       const dx = event.clientX - mouseRef.current.startX;
       const dy = event.clientY - mouseRef.current.startY;
@@ -192,7 +198,9 @@ const TransformableItem: FC<TransformableProps> = ({
     };
 
     const onMouseUp = () => {
+      if (!mouseRef.current.active) return;
       mouseRef.current.active = false;
+      onInteractionEnd?.();
     };
 
     window.addEventListener('mousemove', onMouseMove);
@@ -201,10 +209,11 @@ const TransformableItem: FC<TransformableProps> = ({
       window.removeEventListener('mousemove', onMouseMove);
       window.removeEventListener('mouseup', onMouseUp);
     };
-  }, [onChange]);
+  }, [onChange, onInteractionEnd]);
 
   const handleTouchStart = (event: TouchEvent<HTMLDivElement>) => {
     onSelect?.();
+    onInteractionStart?.();
     if (event.touches.length === 1) {
       const touch = event.touches[0];
       touchRef.current = {
@@ -286,10 +295,12 @@ const TransformableItem: FC<TransformableProps> = ({
       return;
     }
     touchRef.current.mode = 'none';
+    onInteractionEnd?.();
   };
 
   const handleMouseDown = (event: MouseEvent<HTMLDivElement>) => {
     onSelect?.();
+    onInteractionStart?.();
     mouseRef.current = {
       active: true,
       startX: event.clientX,
@@ -313,6 +324,7 @@ const TransformableItem: FC<TransformableProps> = ({
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
+      onTouchCancel={handleTouchEnd}
       onMouseDown={handleMouseDown}
     >
       {children}
@@ -358,6 +370,11 @@ export default function StoryComposer({
   const [favoriteTracks, setFavoriteTracks] = useState<MusicTrack[]>([]);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [playingTrackId, setPlayingTrackId] = useState<number | null>(null);
+  const [activeDragTarget, setActiveDragTarget] = useState<string | null>(null);
+  const [isOverTrash, setIsOverTrash] = useState(false);
+  const [viewportHeight, setViewportHeight] = useState(0);
+  const dragTargetRef = useRef<string | null>(null);
+  const overTrashRef = useRef(false);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -385,6 +402,10 @@ export default function StoryComposer({
     setLocationSuggestions([]);
     setLocationLoading(false);
     setFavoriteTracks([]);
+    setActiveDragTarget(null);
+    setIsOverTrash(false);
+    dragTargetRef.current = null;
+    overTrashRef.current = false;
 
     if (audioRef.current) {
       audioRef.current.pause();
@@ -392,6 +413,16 @@ export default function StoryComposer({
     }
     setPlayingTrackId(null);
   }, [isOpen, file, user?.id]);
+
+  useEffect(() => {
+    if (!isOpen || typeof window === 'undefined') return;
+    const syncViewportHeight = () => setViewportHeight(window.innerHeight);
+    syncViewportHeight();
+    window.addEventListener('resize', syncViewportHeight);
+    return () => {
+      window.removeEventListener('resize', syncViewportHeight);
+    };
+  }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen || !user?.id) {
@@ -668,8 +699,101 @@ export default function StoryComposer({
   const selectedSticker = stickers.find((sticker) => sticker.id === selectedStickerId);
   const tracksToDisplay = musicQuery.trim().length >= 2 ? musicResults : topTracks;
 
+  const trashCenterY = (viewportHeight > 0 ? viewportHeight : 800) / 2 - 90;
+  const isOverDeleteZone = (transform: OverlayTransform) => (
+    Math.abs(transform.x) <= 92 && Math.abs(transform.y - trashCenterY) <= 86
+  );
+
+  const startDraggingTarget = (target: string) => {
+    dragTargetRef.current = target;
+    overTrashRef.current = false;
+    setActiveDragTarget(target);
+    setIsOverTrash(false);
+  };
+
+  const updateDraggingTarget = (target: string, next: OverlayTransform) => {
+    if (dragTargetRef.current !== target) return;
+    const overTrash = isOverDeleteZone(next);
+    overTrashRef.current = overTrash;
+    setIsOverTrash(overTrash);
+  };
+
+  const clearDragState = () => {
+    dragTargetRef.current = null;
+    overTrashRef.current = false;
+    setActiveDragTarget(null);
+    setIsOverTrash(false);
+  };
+
+  const removeTargetByKey = (target: string | null) => {
+    if (!target) return;
+    if (target === 'caption') {
+      setCaption('');
+      return;
+    }
+    if (target === 'location') {
+      setLocationName('');
+      setLocationSuggestions([]);
+      return;
+    }
+    if (target === 'mention') {
+      setMentionTags([]);
+      return;
+    }
+    if (target === 'music') {
+      setSelectedMusic(null);
+      setLyricsText('');
+      setMusicDisplayMode('album');
+      return;
+    }
+    if (target.startsWith('sticker:')) {
+      const stickerId = target.replace('sticker:', '');
+      setStickers((prev) => prev.filter((item) => item.id !== stickerId));
+      setSelectedStickerId((prev) => (prev === stickerId ? null : prev));
+    }
+  };
+
+  const finishDraggingTarget = () => {
+    const target = dragTargetRef.current;
+    const shouldDelete = overTrashRef.current;
+    clearDragState();
+    if (shouldDelete) {
+      removeTargetByKey(target);
+    }
+  };
+
+  const handleCaptionTransformChange = (next: OverlayTransform) => {
+    setCaptionTransform(next);
+    updateDraggingTarget('caption', next);
+  };
+
+  const handleLocationTransformChange = (next: OverlayTransform) => {
+    setLocationTransform(next);
+    updateDraggingTarget('location', next);
+  };
+
+  const handleMentionTransformChange = (next: OverlayTransform) => {
+    setMentionTransform(next);
+    updateDraggingTarget('mention', next);
+  };
+
+  const handleMusicTransformChange = (next: OverlayTransform) => {
+    setMusicTransform(next);
+    updateDraggingTarget('music', next);
+  };
+
+  const handleStickerTransformChange = (stickerId: string, next: OverlayTransform) => {
+    setStickers((prev) =>
+      prev.map((item) =>
+        item.id === stickerId ? { ...item, x: next.x, y: next.y, scale: next.scale } : item
+      )
+    );
+    updateDraggingTarget(`sticker:${stickerId}`, next);
+  };
+
   const handlePublish = async () => {
     if (!file) return;
+    clearDragState();
     await onPublish({
       caption: caption.trim() || undefined,
       textColor: textColor || undefined,
@@ -706,6 +830,7 @@ export default function StoryComposer({
   };
 
   const handleClose = () => {
+    clearDragState();
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.src = '';
@@ -752,10 +877,12 @@ export default function StoryComposer({
         {selectedMusic && musicDisplayMode === 'album' && (
           <TransformableItem
             transform={musicTransform}
-            onChange={setMusicTransform}
+            onChange={handleMusicTransformChange}
             className="z-20"
             minScale={0.7}
             maxScale={2.4}
+            onInteractionStart={() => startDraggingTarget('music')}
+            onInteractionEnd={finishDraggingTarget}
           >
             <div className="bg-black/55 text-white rounded-full px-3 py-1.5 text-xs font-semibold flex items-center gap-2">
               {selectedMusic.artworkUrl100 ? (
@@ -773,10 +900,12 @@ export default function StoryComposer({
         {selectedMusic && musicDisplayMode === 'lyrics' && (
           <TransformableItem
             transform={musicTransform}
-            onChange={setMusicTransform}
+            onChange={handleMusicTransformChange}
             className="z-20 w-[80vw] overflow-hidden"
             minScale={0.7}
             maxScale={2.4}
+            onInteractionStart={() => startDraggingTarget('music')}
+            onInteractionEnd={finishDraggingTarget}
           >
             <motion.div
               className="text-white text-base font-bold whitespace-nowrap drop-shadow-[0_2px_8px_rgba(0,0,0,0.85)]"
@@ -792,10 +921,12 @@ export default function StoryComposer({
         {locationName && (
           <TransformableItem
             transform={locationTransform}
-            onChange={setLocationTransform}
+            onChange={handleLocationTransformChange}
             className="z-20"
             minScale={0.7}
             maxScale={2.4}
+            onInteractionStart={() => startDraggingTarget('location')}
+            onInteractionEnd={finishDraggingTarget}
           >
             <div className="bg-black/55 text-white rounded-full px-3 py-1.5 text-xs font-semibold flex items-center gap-2 max-w-[70vw]">
               <MapPin className="w-3.5 h-3.5 shrink-0" />
@@ -807,10 +938,12 @@ export default function StoryComposer({
         {mentionTags.length > 0 && (
           <TransformableItem
             transform={mentionTransform}
-            onChange={setMentionTransform}
+            onChange={handleMentionTransformChange}
             className="z-20"
             minScale={0.7}
             maxScale={2.4}
+            onInteractionStart={() => startDraggingTarget('mention')}
+            onInteractionEnd={finishDraggingTarget}
           >
             <div className="flex flex-wrap gap-2 justify-center max-w-[80vw]">
               {mentionTags.map((tag) => (
@@ -826,19 +959,18 @@ export default function StoryComposer({
           <TransformableItem
             key={sticker.id}
             transform={{ x: sticker.x, y: sticker.y, scale: sticker.scale || 1 }}
-            onChange={(next) =>
-              setStickers((prev) =>
-                prev.map((item) =>
-                  item.id === sticker.id ? { ...item, x: next.x, y: next.y, scale: next.scale } : item
-                )
-              )
-            }
+            onChange={(next) => handleStickerTransformChange(sticker.id, next)}
             className={`z-20 text-3xl md:text-4xl drop-shadow-[0_2px_8px_rgba(0,0,0,0.75)] ${
               selectedStickerId === sticker.id ? 'ring-2 ring-white/70 rounded-lg' : ''
             }`}
             minScale={0.5}
             maxScale={3}
             onSelect={() => setSelectedStickerId(sticker.id)}
+            onInteractionStart={() => {
+              setSelectedStickerId(sticker.id);
+              startDraggingTarget(`sticker:${sticker.id}`);
+            }}
+            onInteractionEnd={finishDraggingTarget}
           >
             {sticker.label}
           </TransformableItem>
@@ -847,10 +979,12 @@ export default function StoryComposer({
         {caption && (
           <TransformableItem
             transform={captionTransform}
-            onChange={setCaptionTransform}
+            onChange={handleCaptionTransformChange}
             className="z-20 text-center px-4"
             minScale={0.6}
             maxScale={3}
+            onInteractionStart={() => startDraggingTarget('caption')}
+            onInteractionEnd={finishDraggingTarget}
           >
             <p
               className="text-3xl md:text-4xl font-black break-words drop-shadow-[0_2px_10px_rgba(0,0,0,0.85)]"
@@ -860,6 +994,34 @@ export default function StoryComposer({
             </p>
           </TransformableItem>
         )}
+
+        <div className="absolute right-4 bottom-24 z-20 pointer-events-none select-none">
+          <span className="text-[10px] font-bold tracking-wide text-white/70 bg-black/35 rounded-full px-2 py-1 border border-white/20">
+            {STORY_WATERMARK}
+          </span>
+        </div>
+
+        <AnimatePresence>
+          {activeDragTarget && (
+            <motion.div
+              initial={{ opacity: 0, y: 30, scale: 0.9 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 30, scale: 0.9 }}
+              className="absolute left-1/2 bottom-8 z-50 -translate-x-1/2 pointer-events-none"
+            >
+              <div
+                className={`min-w-[170px] rounded-2xl px-4 py-3 text-white text-xs font-bold shadow-2xl border transition-all duration-150 flex items-center justify-center gap-2 ${
+                  isOverTrash
+                    ? 'bg-red-600/95 border-red-300 scale-105'
+                    : 'bg-black/70 border-white/20'
+                }`}
+              >
+                <Trash2 className="w-4 h-4" />
+                {isOverTrash ? 'Solte para excluir' : 'Arraste para a lixeira'}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Top actions */}
         <div className="absolute top-4 left-4 right-4 z-30 flex items-center justify-between">
