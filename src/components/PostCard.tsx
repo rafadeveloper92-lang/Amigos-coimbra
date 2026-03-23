@@ -52,10 +52,14 @@ export default function PostCard({ id, userId, author, author_avatar, group, tim
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isVideoMuted, setIsVideoMuted] = useState(true);
+  const [isVideoInView, setIsVideoInView] = useState(false);
   const { user, profile } = useAuth();
   
   const optionsRef = useRef<HTMLDivElement>(null);
   const reactionTimeout = useRef<any>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const mediaContainerRef = useRef<HTMLDivElement | null>(null);
 
   const getAvatarUrl = (url?: string, seed?: string) => {
     if (url) return url;
@@ -67,6 +71,55 @@ export default function PostCard({ id, userId, author, author_avatar, group, tim
     image.startsWith('data:video/') ||
     /\.(mp4|webm|ogg|mov|m4v)(\?.*)?$/i.test(image)
   );
+
+  const getPostHandle = () => {
+    const normalized = (author || 'amigoscoimbra')
+      .toLowerCase()
+      .trim()
+      .replace(/\s+/g, '')
+      .replace(/[^a-z0-9._@]/g, '');
+    if (!normalized) return '@amigoscoimbra';
+    return normalized.startsWith('@') ? normalized : `@${normalized}`;
+  };
+
+  useEffect(() => {
+    if (!isVideoMedia) return;
+    const target = mediaContainerRef.current;
+    if (!target) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+        setIsVideoInView(entry.isIntersecting && entry.intersectionRatio >= 0.55);
+      },
+      { threshold: [0, 0.25, 0.55, 0.8] }
+    );
+
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [isVideoMedia, image]);
+
+  useEffect(() => {
+    if (!isVideoMedia) return;
+    const video = videoRef.current;
+    if (!video) return;
+
+    if (isVideoInView) {
+      video.play().catch(() => {
+        // no-op: políticas de autoplay
+      });
+      return;
+    }
+    video.pause();
+  }, [isVideoInView, isVideoMedia, image]);
+
+  useEffect(() => {
+    return () => {
+      if (videoRef.current) {
+        videoRef.current.pause();
+      }
+    };
+  }, []);
 
   useEffect(() => {
     // Fetch initial comment count accurately
@@ -423,7 +476,8 @@ export default function PostCard({ id, userId, author, author_avatar, group, tim
       {/* Image */}
       {image && (
         <div 
-          className="w-full aspect-video overflow-hidden cursor-pointer relative"
+          ref={isVideoMedia ? mediaContainerRef : undefined}
+          className={`w-full overflow-hidden relative ${isVideoMedia ? 'bg-black' : 'aspect-video cursor-pointer'}`}
           onClick={() => {
             if (!isVideoMedia) {
               setIsFullscreen(true);
@@ -432,17 +486,38 @@ export default function PostCard({ id, userId, author, author_avatar, group, tim
         >
           {isVideoMedia ? (
             <video
+              ref={videoRef}
               src={image}
-              controls
+              autoPlay
+              loop
               playsInline
               preload="metadata"
-              className="w-full h-full object-cover bg-black"
+              muted={isVideoMuted}
+              className="w-full h-auto max-h-[74vh] object-contain mx-auto"
             />
           ) : (
             <img src={image} alt="Post content" className="w-full h-full object-cover" />
           )}
+          {isVideoMedia && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                const nextMuted = !isVideoMuted;
+                setIsVideoMuted(nextMuted);
+                if (videoRef.current) {
+                  videoRef.current.muted = nextMuted;
+                  if (!nextMuted) {
+                    void videoRef.current.play().catch(() => undefined);
+                  }
+                }
+              }}
+              className="absolute right-3 top-3 z-10 px-2 py-1 rounded-full text-[11px] font-bold bg-black/55 text-white border border-white/25"
+            >
+              {isVideoMuted ? 'Som off' : 'Som on'}
+            </button>
+          )}
           <div className="absolute right-3 bottom-3 z-10">
-            <BrandWatermark compact />
+            <BrandWatermark compact handle={getPostHandle()} />
           </div>
         </div>
       )}
@@ -510,7 +585,7 @@ export default function PostCard({ id, userId, author, author_avatar, group, tim
                     </div>
 
                     <div className="absolute right-6 bottom-10 z-[210]">
-                      <BrandWatermark compact />
+                      <BrandWatermark compact handle={getPostHandle()} />
                     </div>
 
                     <TransformComponent
