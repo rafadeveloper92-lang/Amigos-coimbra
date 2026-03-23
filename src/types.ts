@@ -104,6 +104,16 @@ export interface HighlightItem {
   created_at: string;
 }
 
+export interface AlbumItem {
+  id: number;
+  user_id: string;
+  media_url: string;
+  media_type: 'image' | 'video';
+  caption?: string | null;
+  accent_color?: string | null;
+  created_at: string;
+}
+
 export interface Ad {
   id: number;
   title: string;

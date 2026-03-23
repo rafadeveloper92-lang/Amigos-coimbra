@@ -1,5 +1,5 @@
 import { supabase } from './supabaseClient';
-import { Post, Group, Friend, Ad, Story } from '../types';
+import { Post, Group, Friend, Ad, Story, AlbumItem } from '../types';
 
 type StoryCommentRecord = {
   id: string;
@@ -41,6 +41,14 @@ const inferPostMediaType = (url?: string | null, explicitType?: string | null): 
 const resolvePostMediaUrl = (post: any) => (
   post.image || post.image_url || post.media_url || null
 );
+
+const ALBUM_ACCENT_PALETTE = [
+  '#d7bb76',
+  '#4f9cf9',
+  '#c084fc',
+  '#34d399',
+  '#f97316',
+];
 
 export const dataService = {
   async getStories(): Promise<Story[]> {
@@ -1837,6 +1845,127 @@ export const dataService = {
       }
       return { connected: false, message: 'Erro de rede' };
     }
+  },
+
+  async getUserAlbumItems(userId: string): Promise<AlbumItem[]> {
+    if (!userId) return [];
+
+    const { data, error } = await supabase
+      .from('user_album_items')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Erro ao buscar álbum do usuário:', error);
+      return [];
+    }
+
+    return (data || []).map((item: any) => ({
+      id: item.id,
+      user_id: item.user_id,
+      media_url: item.media_url,
+      media_type: inferPostMediaType(item.media_url, item.media_type),
+      caption: item.caption ?? null,
+      accent_color: item.accent_color ?? null,
+      created_at: item.created_at,
+    }));
+  },
+
+  async uploadAlbumMedia(file: File, userId: string): Promise<{ url: string; mediaType: 'image' | 'video' } | null> {
+    if (!file || !userId) return null;
+
+    const mediaType: 'image' | 'video' = file.type.startsWith('video/') ? 'video' : 'image';
+    const fileExt = file.name.split('.').pop() || (mediaType === 'video' ? 'mp4' : 'jpg');
+    const randomId = Math.random().toString(36).slice(2, 10);
+    const mediaFolder = mediaType === 'video' ? 'album-videos' : 'album-images';
+    const filePath = `${mediaFolder}/${userId}/${Date.now()}-${randomId}.${fileExt}`;
+    const candidateBuckets = ['images', 'highlights'] as const;
+
+    for (const bucket of candidateBuckets) {
+      const { error: uploadError } = await supabase.storage
+        .from(bucket)
+        .upload(filePath, file);
+
+      if (!uploadError) {
+        const { data } = supabase.storage
+          .from(bucket)
+          .getPublicUrl(filePath);
+        return { url: data.publicUrl, mediaType };
+      }
+
+      console.error(`Erro ao subir mídia do álbum no bucket "${bucket}":`, uploadError);
+    }
+
+    return null;
+  },
+
+  async createUserAlbumItem(userId: string, payload: { mediaUrl: string; mediaType: 'image' | 'video'; caption?: string | null }) {
+    if (!userId || !payload.mediaUrl || !payload.mediaType) return null;
+
+    const { count } = await supabase
+      .from('user_album_items')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', userId);
+
+    if ((count || 0) >= 10) {
+      throw new Error('Limite de 10 itens no álbum atingido.');
+    }
+
+    const accent = ALBUM_ACCENT_PALETTE[Math.floor(Math.random() * ALBUM_ACCENT_PALETTE.length)];
+
+    const basePayload = {
+      user_id: userId,
+      media_url: payload.mediaUrl,
+      media_type: payload.mediaType,
+    };
+
+    const extendedPayload = {
+      ...basePayload,
+      caption: payload.caption?.trim() || null,
+      accent_color: accent,
+    };
+
+    const { data, error } = await supabase
+      .from('user_album_items')
+      .insert([extendedPayload])
+      .select()
+      .maybeSingle();
+
+    if (error) {
+      const canRetryBasePayload =
+        error.code === 'PGRST204' ||
+        error.message.toLowerCase().includes('column') ||
+        error.message.toLowerCase().includes('schema cache');
+
+      if (!canRetryBasePayload) throw error;
+
+      const retry = await supabase
+        .from('user_album_items')
+        .insert([basePayload])
+        .select()
+        .maybeSingle();
+
+      if (retry.error) throw retry.error;
+      return retry.data;
+    }
+
+    return data;
+  },
+
+  async deleteUserAlbumItem(itemId: number, userId?: string) {
+    let query = supabase
+      .from('user_album_items')
+      .delete()
+      .eq('id', itemId);
+
+    if (userId) {
+      query = query.eq('user_id', userId);
+    }
+
+    const { error } = await query;
+    if (error) throw error;
+    return true;
   },
 
   async getHighlights(userId: string) {

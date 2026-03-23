@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { dataService } from '../services/dataService';
 import { supabase } from '../services/supabaseClient';
-import { Post as PostType } from '../types';
+import { Post as PostType, AlbumItem } from '../types';
 import PostCard from './PostCard';
 import HighlightViewer from './HighlightViewer';
 import { motion } from 'motion/react';
@@ -30,7 +30,11 @@ import {
   Play,
   UserSquare,
   Moon,
-  Sun
+  Sun,
+  Upload,
+  Trash2,
+  Sparkles,
+  X
 } from 'lucide-react';
 import { nationalities, relationships } from './UserProfile';
 
@@ -39,6 +43,8 @@ interface UserProfileViewProps {
   userId?: string;
   onSendMessage?: (userId: string) => void;
 }
+
+const ALBUM_MAX_ITEMS = 10;
 
 export default function UserProfileView({ onEdit, userId, onSendMessage }: UserProfileViewProps) {
   const { profile: currentUserProfile, user: currentUser } = useAuth();
@@ -54,6 +60,10 @@ export default function UserProfileView({ onEdit, userId, onSendMessage }: UserP
   const [savingHighlight, setSavingHighlight] = useState(false);
   const [viewingHighlight, setViewingHighlight] = useState<{ id: string; canManage: boolean } | null>(null);
   const [editingHighlight, setEditingHighlight] = useState<any>(null);
+  const [albumItems, setAlbumItems] = useState<AlbumItem[]>([]);
+  const [albumUploading, setAlbumUploading] = useState(false);
+  const [albumError, setAlbumError] = useState<string | null>(null);
+  const [selectedAlbumItem, setSelectedAlbumItem] = useState<AlbumItem | null>(null);
 
   const isOwnProfile = !userId || userId === currentUser?.id;
 
@@ -119,15 +129,17 @@ export default function UserProfileView({ onEdit, userId, onSendMessage }: UserP
           setProfile(fetchedProfile);
         }
 
-        const [userPosts, stats, userHighlights] = await Promise.all([
+        const [userPosts, stats, userHighlights, userAlbumItems] = await Promise.all([
           dataService.getUserPosts(targetUserId),
           dataService.getProfileStats(targetUserId),
-          dataService.getHighlights(targetUserId)
+          dataService.getHighlights(targetUserId),
+          dataService.getUserAlbumItems(targetUserId),
         ]);
         
         setPosts(userPosts);
         setProfile(prev => ({ ...prev, ...stats }));
         setHighlights(userHighlights);
+        setAlbumItems(userAlbumItems);
       } catch (error) {
         console.error('Error fetching profile data:', error);
       } finally {
@@ -199,6 +211,7 @@ export default function UserProfileView({ onEdit, userId, onSendMessage }: UserP
   });
   const dropdownRef = useRef<HTMLDivElement>(null);
   const ownProfileMenuRef = useRef<HTMLDivElement>(null);
+  const albumUploadInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -283,6 +296,81 @@ export default function UserProfileView({ onEdit, userId, onSendMessage }: UserP
         }
       }
     });
+  };
+
+  const getAlbumTileClass = (index: number, total: number) => {
+    if (index === 0) return 'col-span-2 md:col-span-2 row-span-2';
+    if (total <= 3) return 'col-span-1 row-span-2';
+    if (index % 5 === 1) return 'col-span-1 row-span-2';
+    if (index % 5 === 4) return 'col-span-1 row-span-2';
+    return 'col-span-1 row-span-1';
+  };
+
+  const refreshAlbumItems = async () => {
+    const targetUserId = userId || currentUser?.id;
+    if (!targetUserId) return;
+    const updated = await dataService.getUserAlbumItems(targetUserId);
+    setAlbumItems(updated);
+  };
+
+  const handleAlbumUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (!isOwnProfile || !currentUser?.id || !event.target.files?.length) return;
+
+    setAlbumError(null);
+    const allFiles = Array.from(event.target.files as FileList) as File[];
+    const remainingSlots = ALBUM_MAX_ITEMS - albumItems.length;
+
+    if (remainingSlots <= 0) {
+      setAlbumError('Seu álbum já atingiu o limite de 10 itens.');
+      event.target.value = '';
+      return;
+    }
+
+    const filesToUpload = allFiles.slice(0, remainingSlots);
+    setAlbumUploading(true);
+
+    try {
+      for (const file of filesToUpload) {
+        const uploadResult = await dataService.uploadAlbumMedia(file, currentUser.id);
+        if (!uploadResult?.url) {
+          throw new Error('Falha ao enviar mídia do álbum.');
+        }
+
+        await dataService.createUserAlbumItem(currentUser.id, {
+          mediaUrl: uploadResult.url,
+          mediaType: uploadResult.mediaType,
+        });
+      }
+
+      if (allFiles.length > filesToUpload.length) {
+        setAlbumError(`Apenas ${filesToUpload.length} ficheiro(s) foram enviados. Limite total: 10 itens.`);
+      }
+
+      await refreshAlbumItems();
+    } catch (error: any) {
+      console.error('Erro ao enviar mídia para o álbum:', error);
+      setAlbumError(error?.message || 'Não foi possível enviar o álbum agora.');
+    } finally {
+      setAlbumUploading(false);
+      event.target.value = '';
+    }
+  };
+
+  const handleDeleteAlbumItem = async (itemId: number) => {
+    if (!currentUser?.id) return;
+    const confirmed = window.confirm('Excluir este item do álbum?');
+    if (!confirmed) return;
+
+    try {
+      await dataService.deleteUserAlbumItem(itemId, currentUser.id);
+      setAlbumItems((prev) => prev.filter((item) => item.id !== itemId));
+      if (selectedAlbumItem?.id === itemId) {
+        setSelectedAlbumItem(null);
+      }
+    } catch (error) {
+      console.error('Erro ao excluir item do álbum:', error);
+      setAlbumError('Não foi possível excluir este item.');
+    }
   };
 
   return (
@@ -798,18 +886,48 @@ export default function UserProfileView({ onEdit, userId, onSendMessage }: UserP
           <div className={`rounded-2xl p-6 shadow-sm border ${isDark ? 'bg-white/10 backdrop-blur-xl border-white/15' : 'bg-white border-slate-100'}`}>
             <div className="flex items-center justify-between mb-6">
               <h2 className={`text-lg font-black ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>Fotos</h2>
-              <button className={`text-sm font-bold hover:underline ${isDark ? 'text-[#d7bb76]' : 'text-nexus-blue'}`}>Ver todas</button>
+              <button
+                onClick={() => setActiveTab('photos')}
+                className={`text-sm font-bold hover:underline ${isDark ? 'text-[#d7bb76]' : 'text-nexus-blue'}`}
+              >
+                Ver todas
+              </button>
             </div>
-            <div className="grid grid-cols-3 gap-2 rounded-xl overflow-hidden">
-              {[1, 2, 3, 4, 5, 6].map((i) => (
-                <img 
-                  key={`user-photo-${i}`} 
-                  src={`https://picsum.photos/seed/${username}-photo-${i}/200/200`} 
-                  alt="Photo" 
-                  className={`aspect-square object-cover hover:opacity-80 cursor-pointer transition-all ${isDark ? 'border border-white/10' : 'border border-slate-100'}`}
-                />
-              ))}
-            </div>
+            {albumItems.length > 0 ? (
+              <div className="grid grid-cols-3 gap-2 rounded-xl overflow-hidden">
+                {albumItems.slice(0, 6).map((item) => (
+                  <button
+                    key={item.id}
+                    onClick={() => {
+                      setActiveTab('photos');
+                      setSelectedAlbumItem(item);
+                    }}
+                    className={`relative aspect-square overflow-hidden ${isDark ? 'border border-white/10' : 'border border-slate-100'}`}
+                  >
+                    {item.media_type === 'video' ? (
+                      <>
+                        <video
+                          src={item.media_url}
+                          muted
+                          playsInline
+                          preload="metadata"
+                          className="w-full h-full object-cover"
+                        />
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <Play className="w-6 h-6 text-white drop-shadow-[0_2px_6px_rgba(0,0,0,0.7)] fill-white" />
+                        </div>
+                      </>
+                    ) : (
+                      <img src={item.media_url} alt="Álbum" className="w-full h-full object-cover" />
+                    )}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className={`rounded-xl p-5 text-center border ${isDark ? 'border-white/10 bg-white/5 text-slate-400' : 'border-slate-100 bg-slate-50 text-slate-500'}`}>
+                Sem itens no álbum ainda.
+              </div>
+            )}
           </div>
         </div>
 
@@ -836,6 +954,138 @@ export default function UserProfileView({ onEdit, userId, onSendMessage }: UserP
                 </div>
               )}
             </>
+          ) : activeTab === 'photos' ? (
+            <div className={`rounded-2xl p-4 md:p-6 border shadow-sm ${isDark ? 'bg-white/10 border-white/15 backdrop-blur-xl' : 'bg-white border-slate-100'}`}>
+              <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                <div>
+                  <h3 className={`text-lg font-black flex items-center gap-2 ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
+                    <Sparkles className={`w-4 h-4 ${isDark ? 'text-[#d7bb76]' : 'text-nexus-blue'}`} />
+                    Álbum Premium
+                  </h3>
+                  <p className={`text-xs mt-1 ${isDark ? 'text-slate-300' : 'text-slate-500'}`}>
+                    Montagem automática personalizada • {albumItems.length}/{ALBUM_MAX_ITEMS} itens
+                  </p>
+                </div>
+
+                {isOwnProfile && (
+                  <div className="flex items-center gap-2">
+                    <input
+                      ref={albumUploadInputRef}
+                      type="file"
+                      accept="image/*,video/*"
+                      multiple
+                      onChange={handleAlbumUpload}
+                      className="hidden"
+                    />
+                    <button
+                      onClick={() => albumUploadInputRef.current?.click()}
+                      disabled={albumUploading || albumItems.length >= ALBUM_MAX_ITEMS}
+                      className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold border transition-colors disabled:opacity-60 ${isDark ? 'bg-white/10 hover:bg-white/15 text-slate-100 border-white/20' : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'}`}
+                    >
+                      {albumUploading ? (
+                        <div className="w-4 h-4 border-2 border-current/30 border-t-current rounded-full animate-spin" />
+                      ) : (
+                        <Upload className="w-4 h-4" />
+                      )}
+                      {albumUploading ? 'Enviando...' : 'Adicionar mídia'}
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {albumError && (
+                <div className={`mb-3 text-xs px-3 py-2 rounded-lg border ${isDark ? 'bg-red-500/10 border-red-400/30 text-red-300' : 'bg-red-50 border-red-200 text-red-600'}`}>
+                  {albumError}
+                </div>
+              )}
+
+              {albumItems.length > 0 ? (
+                <div className="grid grid-cols-2 md:grid-cols-3 auto-rows-[110px] md:auto-rows-[130px] gap-2">
+                  {albumItems.map((item, index) => (
+                    <button
+                      key={item.id}
+                      onClick={() => setSelectedAlbumItem(item)}
+                      className={`relative overflow-hidden rounded-2xl border ${isDark ? 'border-white/15' : 'border-slate-100'} ${getAlbumTileClass(index, albumItems.length)}`}
+                      style={item.accent_color ? { boxShadow: `inset 0 0 0 1px ${item.accent_color}55` } : undefined}
+                    >
+                      {item.media_type === 'video' ? (
+                        <video
+                          src={item.media_url}
+                          muted
+                          playsInline
+                          preload="metadata"
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <img src={item.media_url} alt="Álbum" className="w-full h-full object-cover" />
+                      )}
+
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/10" />
+
+                      <div className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-black/45 px-2 py-1 text-[10px] text-white font-bold">
+                        {item.media_type === 'video' ? (
+                          <>
+                            <Play className="w-3 h-3 fill-white" />
+                            Vídeo
+                          </>
+                        ) : (
+                          'Foto'
+                        )}
+                      </div>
+
+                      {isOwnProfile && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteAlbumItem(item.id);
+                          }}
+                          className="absolute right-2 top-2 p-1.5 rounded-full bg-black/55 text-white hover:bg-black/75"
+                          title="Excluir item"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+
+                      <div className="absolute left-2 right-2 bottom-2 flex items-center justify-between">
+                        <span className="text-[10px] font-bold text-white/90">
+                          #{index + 1}
+                        </span>
+                        <span className="text-[10px] font-semibold text-white/80">
+                          {new Date(item.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
+                        </span>
+                      </div>
+                    </button>
+                  ))}
+
+                  {isOwnProfile && albumItems.length < ALBUM_MAX_ITEMS && (
+                    <button
+                      onClick={() => albumUploadInputRef.current?.click()}
+                      className={`rounded-2xl border-2 border-dashed transition-colors flex flex-col items-center justify-center gap-1 ${isDark ? 'border-white/25 bg-white/5 hover:bg-white/10 text-slate-200' : 'border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-600'}`}
+                    >
+                      <Plus className="w-5 h-5" />
+                      <span className="text-[11px] font-bold">Adicionar</span>
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className={`rounded-2xl border p-10 text-center ${isDark ? 'border-white/15 bg-white/5 text-slate-300' : 'border-slate-100 bg-slate-50 text-slate-500'}`}>
+                  <Sparkles className={`w-8 h-8 mx-auto mb-3 ${isDark ? 'text-[#d7bb76]' : 'text-nexus-blue'}`} />
+                  <p className="text-sm font-bold">Seu álbum premium ainda está vazio.</p>
+                  <p className="text-xs mt-1 opacity-80">
+                    Carregue fotos e vídeos para gerar uma montagem automática personalizada.
+                  </p>
+                  {isOwnProfile && (
+                    <button
+                      onClick={() => albumUploadInputRef.current?.click()}
+                      className={`mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold border ${isDark ? 'bg-white/10 hover:bg-white/15 text-slate-100 border-white/20' : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-200'}`}
+                    >
+                      <Upload className="w-4 h-4" />
+                      Enviar primeira mídia
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
           ) : (
             <div className={`rounded-2xl p-12 text-center border shadow-sm ${isDark ? 'bg-white/10 border-white/15 backdrop-blur-xl' : 'bg-white border-slate-100'}`}>
               <p className={`font-bold ${isDark ? 'text-slate-300' : 'text-slate-500'}`}>Esta seção está em desenvolvimento.</p>
@@ -843,6 +1093,40 @@ export default function UserProfileView({ onEdit, userId, onSendMessage }: UserP
           )}
         </div>
       </div>
+
+      {selectedAlbumItem && (
+        <div
+          className="fixed inset-0 z-[130] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => setSelectedAlbumItem(null)}
+        >
+          <div
+            className="relative w-full max-w-3xl rounded-2xl overflow-hidden border border-white/20 bg-black"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setSelectedAlbumItem(null)}
+              className="absolute top-3 right-3 z-10 p-2 rounded-full bg-black/55 text-white hover:bg-black/75"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            {selectedAlbumItem.media_type === 'video' ? (
+              <video
+                src={selectedAlbumItem.media_url}
+                controls
+                autoPlay
+                playsInline
+                className="w-full max-h-[82vh] object-contain bg-black"
+              />
+            ) : (
+              <img
+                src={selectedAlbumItem.media_url}
+                alt="Mídia do álbum"
+                className="w-full max-h-[82vh] object-contain bg-black"
+              />
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
