@@ -1,7 +1,5 @@
 # Gera APK (debug) na nuvem.
-# Requer secrets: VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY.
-#
-# Nota: instalamos o SDK com curl+sdkmanager em vez da action que às vezes falha no runner.
+# Requer secrets: SUP, VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY.
 
 name: Build Android APK
 
@@ -26,6 +24,8 @@ jobs:
 
       - name: Build web + Capacitor sync
         env:
+          # AJUSTE AQUI: O GitHub vai usar o seu segredo 'SUP'
+          SUP: ${{ secrets.SUP }}
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
         run: npm run build:capacitor
@@ -44,8 +44,6 @@ jobs:
           sudo apt-get install -y -qq unzip curl
           ANDROID_SDK="$HOME/android-sdk"
           mkdir -p "$ANDROID_SDK/cmdline-tools"
-          # Pacote oficial (Linux). Se 404 no futuro, atualiza o nome do zip em:
-          # https://developer.android.com/studio#command-line-tools-only
           curl -fsSL "https://dl.google.com/android/repository/commandlinetools-linux-13114758_latest.zip" -o /tmp/cmdline-tools.zip
           unzip -q /tmp/cmdline-tools.zip -d /tmp
           rm -rf "$ANDROID_SDK/cmdline-tools/latest"
