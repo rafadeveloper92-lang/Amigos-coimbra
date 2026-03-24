@@ -1,5 +1,7 @@
-# Gera APK (debug) na nuvem — não precisas de Android Studio no PC.
-# Requer secrets: VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY (iguais ao .env local).
+# Gera APK (debug) na nuvem.
+# Requer secrets: VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY.
+#
+# Nota: instalamos o SDK com curl+sdkmanager em vez da action que às vezes falha no runner.
 
 name: Build Android APK
 
@@ -8,7 +10,7 @@ on:
 
 jobs:
   apk:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -34,14 +36,28 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Android SDK
-        uses: android-actions/setup-android@v3
-        with:
-          packages: |
-            platform-tools
-            platforms;android-34
-            build-tools;34.0.0
-          log-accepted-android-sdk-licenses: true
+      - name: Android SDK (cmdline-tools)
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq unzip curl
+          ANDROID_SDK="$HOME/android-sdk"
+          mkdir -p "$ANDROID_SDK/cmdline-tools"
+          # Pacote oficial (Linux). Se 404 no futuro, atualiza o nome do zip em:
+          # https://developer.android.com/studio#command-line-tools-only
+          curl -fsSL "https://dl.google.com/android/repository/commandlinetools-linux-13114758_latest.zip" -o /tmp/cmdline-tools.zip
+          unzip -q /tmp/cmdline-tools.zip -d /tmp
+          rm -rf "$ANDROID_SDK/cmdline-tools/latest"
+          mv /tmp/cmdline-tools "$ANDROID_SDK/cmdline-tools/latest"
+          export PATH="$ANDROID_SDK/cmdline-tools/latest/bin:$PATH"
+          export ANDROID_HOME="$ANDROID_SDK"
+          export ANDROID_SDK_ROOT="$ANDROID_SDK"
+          yes | sdkmanager --sdk_root="$ANDROID_SDK" --licenses >/dev/null || true
+          sdkmanager --sdk_root="$ANDROID_SDK" --install "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+          echo "ANDROID_HOME=$ANDROID_SDK" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK" >> "$GITHUB_ENV"
+          echo "PATH=$ANDROID_SDK/cmdline-tools/latest/bin:$ANDROID_SDK/platform-tools:$PATH" >> "$GITHUB_ENV"
 
       - name: Gradle cache
         uses: gradle/actions/setup-gradle@v4

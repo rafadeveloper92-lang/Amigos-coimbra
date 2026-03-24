@@ -17,6 +17,8 @@ O repositório tem um workflow **Build Android APK** no GitHub Actions.
 
 Não precisas de instalar Android Studio no PC.
 
+Se o workflow **falhar** no GitHub (SDK/Gradle), é normal — **a opção mais fiável** é a **Opção B** no teu PC.
+
 ---
 
 ## Opção B — Com Android Studio no PC
